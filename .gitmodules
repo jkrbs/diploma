@@ -1,0 +1,12 @@
+[submodule "cap-manager.p4"]
+	path = cap-manager.p4
+	url = git@github.com:jkrbs/cap-manager.p4.git
+[submodule "tcap-rs"]
+	path = tcap-rs
+	url = git@github.com:jkrbs/tcap-rs.git
+[submodule "tcap-controller"]
+	path = tcap-controller
+	url = git@github.com:jkrbs/tcap-controller.git
+[submodule "tcap-benchmarks"]
+	path = tcap-benchmarks
+	url = git@github.com:jkrbs/tcap-benchmarks.git
