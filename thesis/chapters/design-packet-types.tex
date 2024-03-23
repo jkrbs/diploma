@@ -1,0 +1,192 @@
+
+
+\textbf{\texttt{CapInsert}.}
+To insert a capability into the in-network capability table and the local capability table of the recipient, an application sends a \texttt{CapInsert} packet as shown in Listing~\ref{list:capinsert}.
+
+\begin{listing}[H]
+  \begin{minted}[linenos=false]{rust}
+    struct InsertCapHeader {
+        common: CommonHeader,
+        cap_owner_ip: [u8;4],
+        cap_owner_port: u16,
+        cap_id: CapID,
+        cap_type: u8,
+        object_owner_ip_address: [u8; 4],
+        object_owner_port: u16,
+    }
+  \end{minted}
+  \caption{\label{list:capinsert} \texttt{CapInsert} Packet}
+\end{listing}
+
+\textbf{\texttt{CapRevoke}.}
+To revoke a node's access to a resource, the resource owner must revoke the capability for either one node or all nodes. The data plane mirrors \texttt{CapRevoke} messages (Listing~\ref{list:caprevoke}) to the control plane. The control plane changes the switch's capability table entry from \texttt{Forward} to \texttt{Invalid}. After this change, the switch blocks further access to the resource.
+
+\begin{listing}[H]
+  \begin{minted}[linenos=false]{rust}
+   struct InsertCapHeader {
+        common: CommonHeader,
+        cap_owner_ip: [u8;4],
+        cap_owner_port: u16,
+        cap_id: CapID,
+        cap_type: u8,
+        object_owner_ip_address: [u8; 4],
+        object_owner_port: u16,
+    }
+  \end{minted}
+  \caption{\label{list:caprevoke} \texttt{CapInsert} Packet}
+\end{listing}
+
+\textbf{\texttt{CapInvalid}.}
+A service object replies with a \texttt{CapInvalid} message (Listing~\ref{list:capinvalid}) to resource accesses with capability accesses with IDs that are not part of the service local capability table. The switch mirrors \texttt{CapInvalid} packets to the control plane, which inserts a matching entry into the data plane capability table to prevent further accesses with this invalid capability from reaching the resource owner.
+
+
+\begin{listing}[H]
+  \begin{minted}[linenos=false]{rust}
+    struct CapInvalidHeader {
+        common: CommonHeader,
+        address: [u8; 4],
+        port: u16,
+        cap_id: CapID
+    }
+   \end{minted}
+  \caption{\label{list:capinvalid} \texttt{CapInvalid} Packet}
+\end{listing}
+
+\textbf{\texttt{RequestInvoke}.}
+For the invocation of a remote request object, a node sends a \texttt{RequestInvoke} packet (Listing~\ref{list:reqInvoke}).
+
+\begin{listing}[H]
+  \begin{minted}[linenos=false]{rust}
+    RequestInvokeHeader {
+        common: CommonHeader,
+        number_of_conts: u8,
+        continutaion_cap_ids: [CapID;4],
+        flags: u8
+    }
+  \end{minted}
+  \caption{\label{list:reqInvoke} \texttt{RequestInvoke} Packet}
+\end{listing}
+
+The flags in the \texttt{RequestInvokeHeader}, as shown in Listing~\ref{list:reqInvoke}, signal whether the receiver shall send a return code or not. At the time of writing, all other bits in the flag are unused.
+
+
+\textbf{\texttt{RequestResponse}.}
+\begin{listing}[H]
+  \begin{minted}[linenos=false]{rust}
+   struct RequestResponseHeader {
+        common: CommonHeader,
+        response_code: u64,
+    }
+  \end{minted}
+  \caption{\label{list:reqresp} \texttt{RequestResponse} Packet}
+\end{listing}
+
+\textbf{\texttt{MemoryCopyRequest}.}
+The \texttt{MemoryCopyRequest} (Listing~\ref{list:MemoryCopyRequest}) requests the content of the memory capability with the capability ID in the common header. Thus, the network packet does not contain any further information.
+
+\begin{listing}[H]
+  \begin{minted}[linenos=false]{rust}
+struct MemoryCopyRequestHeader {
+    common: CommonHeader
+}
+  \end{minted}
+  \caption{\label{list:MemoryCopyRequest} \texttt{MemoryCopyRequest} Packet}
+\end{listing}
+
+
+\textbf{\texttt{MemoryCopyResponse}.}
+As a response to a \texttt{MemortCopyRequest} a service object replies with \texttt{MemoryCopyResponse} packets. Each packets contains \rust{MEMCOPY_BUFFER_SIZE} bytes of the associated memory objects buffer. \rust{MEMCOPY_BUFFER_SIZE} is a compile time constant of the tcap library. The service object segements the buffer and sends the segments as \texttt{MemoryCopyResponse} which the reciever orders by the packets sequence numbers.
+
+The packets contain the size of the complete buffer in the \texttt{buf\_size} field and the size of the buffer in this packet in the \texttt{size} field. The receiver calculates the number of packets to expect as the ceiled devison of \texttt{buf\_size} by the \texttt{size}.
+
+\begin{listing}[H]
+  \begin{minted}[linenos=false]{rust}
+    struct MemoryCopyResponseHeader {
+        common: CommonHeader,
+        size: u64,
+        buf_size: u64,
+        sequence: u32,
+        buffer: [u8; MEMCOPY_BUFFER_SIZE]
+    }
+  \end{minted}
+  \caption{\label{list:memcopyresponse} \texttt{MemoryCopyResponse} Packet}
+\end{listing}
+
+\subsection{Packet Types}
+The proposed capabality-based authentication protocol for a distributed execution environment supports two types of transactions. Request invocations and memory copies. These are the two fundermental building blocks a user application needs.
+To achive this, the underlying network protocol must support the invocation of requests handlers and the return of a response, the request to copy a memory object and the response containing the memory's content, and basic capability operations, like delegation and revocation. In addition, the protocol must have a error response for the case, that the capability, an application uses is invalid.
+
+The following section presents all of the required network packets as rust structs. The network packets contain the fields listed in the structs in this order in a packet representation, i.e.\ without padding. The \emph{tcap} library uses these network packets as \ac{UDP} payload. Each packet contains a common header prefix shown in Listing~\ref{list:commonheader}. The \rust{CapID} data type is a 128-bit large and interpreted as an unsigned integer. The \rust{CapID} is random and is thus a sparse capability as presented in Chapter~\ref{chap:background}.
+
+% \begin{figure}[ht]
+%   \centering
+%   \begin{tikzpicture}[node distance=-\pgflinewidth]
+%     \node[draw,text width=1.5cm,rectangle,align=center] (size) {size};
+%     \node[draw,text width=1.5cm,rectangle,align=center, right of = size] (stream) {stream id};
+%     \node[draw,text width=1.5cm,rectangle,align=center, right of = stream] (cmd) {cmd};
+%     \node[draw,text width=1.5cm,rectangle,align=center, right of = cmd] (cap) {cap id};
+%   \end{tikzpicture}
+%   \caption{\label{fig:commonheader} }
+% \end{figure}
+For benchmarking purposes, the protocol includes commands for managing the control and data plane.
+An application can start and stop a timer in the control plane, stop the control-plane application, and reset the data plane \acp{RMT}. For these purposes, the
+\texttt{ControllerResetSwitch}, \texttt{ControllerStop}. \texttt{ControllerStartTimer},  and \texttt{ControllerStopTimer} commands exist.
+\subsection{Implict Delegations}
+A capability delegation must not be sent explicitly in an independent packet. It may also be part of a request invocation. By using the continuation capabilities in the invocation request, the invocation request implicitly delegates the continuations to the request handler. The Invocation of a valid capability or successfully copying memory from a capability implies the validity of the underlying capability. Thus, the successful access should yield a corresponding entry in the capability
+table. Only the resource owner's response packets can trigger the creation of implicit delegation and corresponding capability table entry. The entry creation of entries, depending on client requests, would introduce additional races, as depicted in Figure~\ref{fig:capinsert-invalidation-race}\@.
+
+\begin{figure}[ht]
+  \centering
+  \begin{sequencediagram}
+    \tikzstyle{inststyle}=[rectangle,anchor=west,minimum
+    height=0.8cm, minimum width=3cm, fill=white]
+
+    \newinst{client}{Client}
+    \newinst{sw}{Switch}
+    \newinst{cp}{Control-plane}
+    \newinst{service}{Service}
+
+    \begin{call}{client}{\rust{RequestInvoke(cont=[fun1, fun2])}}{service}{}
+
+    \end{call}
+
+    \postlevel
+
+    \begin{call}{sw}{\rust{RequestInvoke(cont=[fun1, fun2])}}{cp}{}
+
+      \mess{cp}{\texttt{CapInsert} fun1}{sw}
+
+      \mess{cp}{\texttt{CapInsert} fun2}{sw}
+    \end{call}
+
+  \end{sequencediagram}
+  \caption{\label{fig:capinserts-from-requestcontinuation} The Request \rust{RequestInvoke(cont=[fun1, fun2])} implicitly delegates the continuation capabilities \rust{fun1, fun2} to the service. Thus, this call should be mirrored to the control-plane application for the insertion into the capability-table.}
+\end{figure}
+
+\begin{figure}[ht]
+  \centering
+  \begin{sequencediagram}
+    \tikzstyle{inststyle}=[rectangle,anchor=west,minimum
+    height=0.8cm, minimum width=1.6cm, fill=white]
+
+    \newinst{client}{Client}
+    \newinst{sw}{Switch}
+    \newinst{cp}{Control-plane}
+    \newinst{service}{Service}
+
+    \begin{call}{client}{\texttt{MemCopy}}{service}{\texttt{CapInvalid}}
+
+    \end{call}
+
+    \begin{call}{sw}{\texttt{CapInvalid}}{cp}{\texttt{CapInvalid} table entry}
+
+    \end{call}
+
+    \begin{call}{sw}{\texttt{MemCopy}}{cp}{\texttt{CapForward} table entry}
+
+    \end{call}
+  \end{sequencediagram}
+  \caption{\label{fig:capinsert-invalidation-race} Race condition between a resource access (Memory Copy) and the invalidation of the capability to the ressource.}
+\end{figure}
+
+The protocol has a hard-coded number of continuation slots. If the switch detects non-zero values in the slots, the switch mirrors the request invocation to the control plane, which inserts the capabilities into the tables.

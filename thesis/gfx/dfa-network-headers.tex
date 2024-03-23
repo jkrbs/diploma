@@ -1,0 +1,25 @@
+\begin{tikzpicture}[every text node part/.style={align=center},initial text=$ $]
+  \matrix[matrix of nodes,, column sep=1cm, row sep=.5cm] (n) {
+    \node[initial, state] (start) {start}; & & &   \node[state, accepting] (reject) {reject};  \\
+  \node[state] (ethernet) {parse\\ethernet}; &
+ \node[state] (ipv4) {parse\\ipv4}; &
+ \node[state] (udp) {parse\\udp};&
+  \node[state] (subparser) {Subparser};\\
+
+    &  \node[state] (arp) {parse\\arp};&  \node[state] (tcp) {parse\\tcp}; & \node[state, accepting] (accept) {accept}; \\
+};
+
+\draw[->] (start) -- (ethernet);
+\draw[->] (ethernet) -- (arp);
+\draw[->] (ethernet) -- (ipv4);
+\draw[->] (ethernet) to[in=180, out=30] (reject);
+
+\draw[->] (arp) to[in=225, out=335] (accept);
+\draw[->] (ipv4) -- (udp);
+\draw[->] (ipv4) -- (tcp);
+\draw[->] (tcp) -- (accept);
+\draw[->] (udp) -- (subparser);
+\draw[->] (subparser) -- (accept);
+\draw[->] (subparser) -- (reject);
+
+\end{tikzpicture}

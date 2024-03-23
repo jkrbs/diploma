@@ -1,0 +1,24 @@
+\begin{tikzpicture}[
+        %Environment Cfg.
+    ]
+    \begin{axis}[
+        width=\linewidth,
+        height=8cm,
+        at={(0,0)},
+        grid=major,
+        minor tick num =5,
+        minor tick style={draw=none},
+        minor grid style={thin,color=black!10},
+        major grid style={thin,color=black!10},
+        ylabel={Exec Time Star/Exec Time Chain},
+        xlabel=Number of Requests,
+        tick align=outside,
+        axis x line*=middle,
+        axis y line*=none,
+        % xtick={0,1000,...,7000},
+        %ytick={0,1000,...,7000},
+        legend style={at={(1,1)},anchor=north west},
+    ]
+    \addplot[mark=square,color=col5,very thick] table [x index=0,y index=1,col sep=comma] {evaluation-data/star-chain-diff-thesis.csv};
+  \end{axis}
+\end{tikzpicture}

@@ -1,0 +1,37 @@
+\begin{tikzpicture}[every text node part/.style={align=center}]
+  \node[minimum width=1.5cm, minimum height=1.5cm, matrix, matrix of nodes, column sep=5pt, row sep=4pt](main) {
+ \node[] (cl1) {};& & \node[](cl2){};\\
+    \node[fill=col3] (node1){};& & \node[fill=col2](node2){}; \\
+    & & \\
+  &&\\
+  \node[](netl){};&&\node[](netr){};\\
+  &&\\
+  &&\\
+    \node[fill=col3] (cspace1) {CapSpace};& \node[fill=col3](cspace2) {CapSpace}; &\node[fill=col2] (cspace3) {CapSpace}; \\
+  };
+
+    \node[matrix, matrix of nodes, column sep=1pt, row sep=1pt, at=(cl1)](cap-log1){
+      \node[draw, circle, minimum size=1em] (s1) {}; & & \node[draw, circle, minimum size=1em](s2){};\\
+      & \node[draw, circle, minimum size=1em] (s3) {};  & \node[draw, circle, minimum size=1em](s4){};\\
+    };
+    \node[matrix, matrix of nodes, column sep=1pt, row sep=1pt, at=(cl2)](cap-log2){
+      \node[draw, circle, minimum size=1em] (cs1) {}; & & \node[draw, circle, minimum size=1em](cs2){};\\
+      & \node[draw, circle, minimum size=1em] (cs3) {};  & \\
+    };
+
+  \node[ellipse, draw, minimum height = 1cm, fit = (netl.center) (netr.center)] (net) {Network};
+  \node[draw=col1, fit = (cspace1) (cspace2) (cspace3)] (sdn-controller) {};
+  \node[right=1cm of sdn-controller](sdnc-label) {SDN Controller};
+
+%\draw[fill opacity=0.5, fill=col4] (s1) to[closed, curve through =
+%    { ([tension out=2]s3) (s2) }] ([tension out=8]cs1);
+%\draw[fill opacity=0.5, fill=col1] (s4) to[closed] ([tension out=8]s4);
+%\draw[fill opacity=0.5, fill=col3] (cs2.north) to[closed, curve through =
+%    { ([tension out=2]cs3) }] (cs2.south);
+
+  \draw[->] (s1) edge[bend left] (s2);
+  \draw[->] (s1) edge[bend right] (s3);
+  \draw[->] (s2) edge[bend left] (cs1);
+  \draw[->] (cs2) edge[bend left] (cs3);
+
+\end{tikzpicture}

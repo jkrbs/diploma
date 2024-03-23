@@ -1,0 +1,54 @@
+\begin{tikzpicture}[every text node part/.style={align=center}]
+
+  \node[fill=col1, minimum width=1.5cm, minimum height=4cm, matrix, matrix of nodes, column sep=5pt, row sep=4pt](ingress-parser) {
+      \node[state,scale=0.7] (1) {};\\
+      \node[state,scale=0.5] (4) {}; \\
+      \node[state,scale=0.7] (5) {}; \\
+    };
+  \node[fill=col2, minimum width=1.3cm, minimum height=4cm, right = 0.5cm of ingress-parser](ingress) {};
+  \node[fill=col3, minimum width=1.3cm, minimum height=4cm, right = 0.5cm of ingress](ingress-deparser) {};
+  \node[fill=col4, minimum width=1.3cm, minimum height=4cm, right = 0.5cm of ingress-deparser](egress-parser) {};
+  \node[fill=col5, minimum width=1.3cm, minimum height=4cm, right = 0.5cm of egress-parser](egress) {};
+  \node[fill=col6, minimum width=1.3cm, minimum height=4cm, right = 0.5cm of egress](egress-deparser) {};
+
+  \node[above=.3cm of ingress.north](ingress-label) {Ingress};
+  \node[above=.3cm of ingress-parser.north](ingress-parser-label) {Ingress\\Parser};
+  \node[above=.3cm of ingress-deparser.north](ingress-deparser-label) {Ingress\\Deparser};
+  \node[above=.3cm of egress.north](egress-label) {Egress};
+  \node[above=.3cm of egress-parser.north](egress-parser-label) {Egress\\Parser};
+  \node[above=.3cm of egress-deparser.north](egress-deparser-label) {Egress\\Deparser};
+
+
+  \draw[thick, ->] (ingress-parser) -- (ingress);
+  \draw[thick, ->] (ingress) -- (ingress-deparser);
+  \draw[thick, ->] (ingress-deparser) -- (egress-parser);
+  \draw[thick, ->] (egress-parser) -- (egress);
+  \draw[thick, ->] (egress) -- (egress-deparser);
+
+
+  % states in parsers
+
+  \node[right = 1cm of egress-deparser.north](mirroring-label){Mirrored\\Packets};
+  \node[left = 1cm of ingress-parser.south](incoming-label){Incoming\\Packets};
+  \node[right = 1cm of egress-deparser.south](outgoing-label){Outgoing\\Packets};
+
+  \draw[->] ($(incoming-label) + (0,1.5)$) -- ($(ingress-parser.south west) + (0,1.5)$);
+  \draw[->] ($(incoming-label) + (0,2)$) -- ($(ingress-parser.south west) + (0,2)$);
+  \draw[->] ($(incoming-label) + (0,2.5)$) -- ($(ingress-parser.south west) + (0,2.5)$);
+
+
+  \draw[->] ($(egress-deparser.south east) + (0,1)$) -| ($(outgoing-label.north) + (-.5,0)$);
+  \draw[->] ($(egress-deparser.south east) + (0,1.5)$) -| ($(outgoing-label.north) + (0,0)$);
+  \draw[->] ($(egress-deparser.south east) + (0,1.9)$) -| ($(outgoing-label.north) + (.5,0)$);
+
+  \draw[->] ($(egress-deparser.north east) + (0,-1)$) -| ($(mirroring-label.south) + (-.5,0)$);
+  \draw[->] ($(egress-deparser.north east) + (0,-1.5)$) -| ($(mirroring-label.south) + (0,0)$);
+  \draw[->] ($(egress-deparser.north east) + (0,-1.9)$) -| ($(mirroring-label.south) + (.5,0)$);
+
+    \draw[->] (1) edge[loop above] (1);
+    \draw[->] (1) edge[bend left] (4);
+    \draw[->] (4) edge[bend left] (5);
+    \draw[->] (5) edge[loop below] (5);
+    \draw[->] (5) edge[bend left] (1);
+
+\end{tikzpicture}

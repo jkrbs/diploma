@@ -1,0 +1,43 @@
+  \begin{tikzpicture}[every text node part/.style={align=center}]
+    \node[ minimum height=.6cm, minimum width=4cm, draw] (app) {Application};
+    \node[ minimum height=.6cm, minimum width=2cm,draw] at ($(app)-(1cm,.6cm)$) (libfractos) {libfractos};
+    \node[ minimum height=.6cm, minimum width=2cm,draw, right=0cm of libfractos] (other-libs) {libc, \ldots};
+    \node[ minimum height=.6cm, minimum width=4cm, draw, right = 5cm of app] (service) {GPU Compute Service};
+    \node[ minimum height=.6cm, minimum width=2cm, draw] at ($(service)-(1cm,.6cm)$) (libfractos1) {libfractos};
+    \node[ minimum height=.6cm, minimum width=2cm, draw, right=0cm of libfractos1] (other-libs1) {libc, cuda};
+    \node[minimum height=.6cm, minimum width=4cm, draw, below=1.2cm of app] (node1-controller) {Controller};
+    \node[minimum height=.6cm, minimum width=4cm, draw, below=1.2cm of service] (node2-controller) {Controller};
+    \node[ color=tudaccent1, below=2cm of libfractos] (capspace1-1) {CapSpace};
+    \node[ color=tudaccent1, right=.5cm of capspace1-1] (capspace1-2) {CapSpace};
+    \node[ color=tudaccent1, below=2cm of libfractos1] (capspace2-1) {CapSpace};
+    \node[ color=tudaccent1, right=.5cm of capspace2-1] (capspace2-2) {CapSpace};
+
+    \node[ color=tudaccent2, below=.5cm of capspace1-1] (capBlock1) {CapBlock};
+    \node[ color=tudaccent2, below=.5cm of capspace2-1] (capBlock2) {CapBlock};
+
+    \node[draw,  inner ysep=1em, fit = (capspace1-1) (capspace1-2)] (capSTab1){};
+    \node[fill=white] at (capSTab1.north) {CapSpace Table};
+
+    \node[draw,  inner ysep=1em, fit = (capspace2-1) (capspace2-2)] (capSTab2){};
+    \node[fill=white] at (capSTab2.north) {CapSpace Table};
+    \node[color=tudaccent3, below = 1cm of capBlock1] (cap1) {MemCap};
+
+
+    \draw[thick, ->] (capBlock1) to (cap1);
+    \node[right=.5cm of app] (memory) {Memory\\Region};
+    \draw (app.north east) -- (memory.north west);
+    \draw (app.south east) -- (memory.south west);
+
+    \node[draw, below=1cm of memory] (memobj) {Memory\\Object};
+    \draw[->] (memobj) to (memory);
+    \draw[thick, ->] (cap1) to[in=260,out=40] (memobj);
+    \draw[thick, ->] (capBlock2) to[in=0,out=230] (cap1);
+      \node[left=.5cm of service] (memory1) {Memory\\Region};
+    \draw (service.north west) -- (memory1.north east);
+    \draw (service.south west) -- (memory1.south east);
+    \node[draw, below=1cm of memory1] (memobj1) {Memory\\Object};
+    \draw[->] (memobj1) to (memory1);
+
+    \draw[thick, ->] (memory) to[in=90,out=90] node[above] {copy} (memory1);
+    \draw[thick, ->] (memobj) to[in=270,out=270] node[below] {copy} (memobj1);
+  \end{tikzpicture}

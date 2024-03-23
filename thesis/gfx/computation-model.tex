@@ -1,0 +1,56 @@
+\begin{tikzpicture}[every text node part/.style={align=center},initial text=$ $]
+  \node (classical) {
+    \begin{sequencediagram}
+    \tikzstyle{inststyle}=[rectangle,anchor=west,minimum
+    height=0.8cm, minimum width=1.6cm, fill=white]
+
+    \newinst{f1}{Func 1}
+    \newinst{f2}{Func 2}
+    \newinst{f3}{Func 3}
+
+    \begin{call}{f1}{call}{f2}{return}
+    \begin{call}{f2}{call}{f3}{return}
+    \end{call}
+    \end{call}
+  \end{sequencediagram}
+};
+
+\node[right=2.4cm of classical] (pipeline) {
+  \begin{sequencediagram}
+    \tikzstyle{inststyle}=[rectangle,anchor=west,minimum
+    height=0.8cm, minimum width=1.6cm, fill=white]
+
+    \newinst{f1}{Func 1}
+    \newinst{f2}{Func 2}
+    \newinst{f3}{Func 3}
+
+    \mess{f1}{call}{f2};
+    \mess{f2}{call}{f3};
+    \mess{f3}{return}{f1};
+  \end{sequencediagram}
+};
+\matrix[below=2cm of pipeline, matrix of nodes,, column sep=.5cm, row sep=.5cm] (chain) {
+\node[initial, state] (cmain) {Func\\1}; &
+\node[state] (cshort0) {Func\\2}; &
+\node[state] (cshort1) {Func\\3}; \\
+};
+\matrix[left=2cm of chain, matrix of nodes,, column sep=0.5cm, row sep=.5cm] (star) {
+\node[initial, state] (main) {Func\\1}; &
+\node[state] (short0) {Func\\2};&
+\node[state] (short1) {Func\\3}; \\
+};
+\draw[->] (cmain) -- (cshort0);
+\draw[->] (cshort0) -- (cshort1);
+\draw[->] (cshort1) to[out=225, in=315]  (cmain);
+
+\draw[->] (main)   to[out=45, in=135] (short0);
+\draw[->] (short0) to[out=45, in=135] (short1);
+\draw[->] (short1) to[out=225, in=31
+5] (short0);
+\draw[->] (short0) to[out=225, in=315] (main);
+
+
+\draw[->, very thick] (classical) --node[anchor=south] {tail\\recursion} (pipeline);
+\draw[->, cery thick] (pipeline) --node[anchor=west] {communication\\graph} (chain);
+\draw[->, cery thick] (classical) --node[anchor=west] {communication\\graph} ($(classical.south)-(0,1.7cm)$);
+\end{tikzpicture}

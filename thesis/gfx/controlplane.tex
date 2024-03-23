@@ -1,0 +1,21 @@
+\begin{tikzpicture}[every text node part/.style={align=center}]
+  \node[minimum width=2cm, minimum height=1cm, matrix, matrix of nodes, column sep=1cm, row sep=1cm](m) {
+    \node[draw](config){Config};&\node[draw](controller){Controller};&&\node[draw] (bfrt) {Barefoot Runtime};\\
+    &&& \\
+    &\node[draw](request){Request};&&\\
+    &\node[draw](transport){UDP Transport};&&\\
+    &&& \\
+    & \node (a){};&& \node (b){};\\
+  };
+\node[fill=col2, fit = (a) (b)] (dataplane) {Data Plane};
+
+  \draw[->] ($(config.south) + (0,-2)$)--node[anchor=east]{config.json} (config);
+  \draw[->] (config) -- node[anchor=north] {Initial\\Table\\Configuration}(controller);
+
+  \draw[->] ($(a.north) + (0,.1)$) -- node[anchor=west]{Mirrored Packet\\via Socket} (transport);
+
+  \draw[->] (controller) -- node[anchor=north]{Configure\\Tables} (bfrt);
+  \draw[->] (bfrt) --node[anchor=west]{program} ($(b.north) + (0,.1)$);
+  \draw[->] (transport) -- node[anchor=west]{Packet Buffers} (request);
+  \draw[->] (request) -- (controller);
+\end{tikzpicture}

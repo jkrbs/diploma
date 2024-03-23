@@ -1,0 +1,18 @@
+\begin{tikzpicture}
+  \node(tofino-label) {tofino1};
+
+  \node[draw, below=.5cm of tofino-label] (tofino-cpu) {CPU};
+  \node[draw, below=.5cm of tofino-cpu, minimum width=2cm] (tofino-asic) {ASIC};
+
+  \node[draw, below=1.5cm of tofino-asic] (acsl2-nic) {Intel E810-C};
+  \node[below=.5cm of acsl2-nic] (acsl2-label) {acsl2};
+
+  \node[draw,inner xsep=1em, inner ysep=1em, fit = (tofino-cpu) (tofino-label) (tofino-asic), minimum width=3cm] (tofino) {};
+  \node[draw,inner xsep=1em, inner ysep=1em, fit = (acsl2-label) (acsl2-nic), minimum width=3cm] (acsl2) {};
+             inner xsep=1em, inner ysep=1em,
+
+  \draw[<->] ($(acsl2-nic.north) - (.5,0)$) --node[anchor=east] {100Gib} ($(tofino-asic.south) - (.5,0)$);
+  \draw[<->] ($(acsl2-nic.north) + (.5,0)$) --node[anchor=west] {100Gib} ($(tofino-asic.south) + (.5,0)$);
+
+  \draw[<->, thick] (tofino-asic) -- (tofino-cpu);
+\end{tikzpicture}

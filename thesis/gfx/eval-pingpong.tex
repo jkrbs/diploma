@@ -1,0 +1,35 @@
+\begin{tikzpicture}[
+        %Environment Cfg.
+    ]
+    \begin{axis}[
+        width=\linewidth,
+        height=8cm,
+        at={(0,0)},
+        grid=major,
+        minor tick num =5,
+        minor tick style={draw=none},
+        minor grid style={thin,color=black!10},
+        major grid style={thin,color=black!10},
+        ylabel={Exec Time [$\mu{}s$]},
+        xlabel=Number of Capabilities,
+        tick align=outside,
+        axis x line*=none,
+        axis y line*=none,
+    ]
+    \addplot[mark=square, color=col1,very thick, name path=main] table [x index=0,y index=1,col sep=comma] {evaluation-data/ping-pong.csv};
+    \addplot[mark=x, color=col3,very thick, name path=wo-inc] table [x index=0,y index=1,col sep=comma] {evaluation-data/pingpong-no-inc.csv};
+
+    \addplot[color=col1!0, name path=low] table [x index=0,y index=2,col sep=comma] {evaluation-data/ping-pong.csv};
+    \addplot[color=col1!0, name path=high] table [x index=0,y index=3,col sep=comma] {evaluation-data/ping-pong.csv};
+    \addplot [fill=col1!40] fill between[of=main and low];
+    \addplot [fill=col1!40] fill between[of=main and high];
+
+    \addplot[color=col1!0, name path=alow] table [x index=0,y index=2,col sep=comma] {evaluation-data/pingpong-no-inc.csv};
+    \addplot[color=col1!0, name path=ahigh] table [x index=0,y index=3,col sep=comma] {evaluation-data/pingpong-no-inc.csv};
+    \addplot [fill=col3!40] fill between[of=wo-inc and alow];
+    \addplot [fill=col3!40] fill between[of=wo-inc and ahigh];
+
+
+    \legend{w/ in-network cap system, w/o in-network cap system};
+  \end{axis}
+\end{tikzpicture}

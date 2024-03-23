@@ -1,0 +1,82 @@
+\tikzset{
+    table/.style={
+        matrix of nodes,
+        row sep=-\pgflinewidth,
+        column sep=-\pgflinewidth,
+        nodes={
+            rectangle,
+            draw=black,
+            align=center
+        },
+        minimum height=1.5em,
+        text depth=0.5ex,
+        text height=2ex,
+        nodes in empty cells,
+%%
+        every even row/.style={
+            nodes={fill=gray!20}
+        },
+        column 1/.style={
+            nodes={text width=6em,font=\bfseries}
+        },
+        column 2/.style={
+            nodes={text width=6em,font=\bfseries}
+        },
+        row 1/.style={
+            nodes={
+                fill=black!50,
+                text=white,
+                font=\bfseries
+            }
+        }
+    }
+}
+\begin{tikzpicture}[every text node part/.style={align=center}]
+  \matrix[matrix of nodes,, column sep=.7cm, row sep=.5cm] (n) {
+    \node[minimum height = 1cm, minimum width=1cm] (a) {};&&&&&&&&&&&    \node[minimum height = 1cm, minimum width=1cm] (ae) {};\\
+    \node[minimum height = 1cm, minimum width=1cm, fill=col1] (b) {};&&&&&&&&&&\node[minimum height=1cm] (action-code) {action\\code};&    \node[minimum height = 1cm, minimum width=1cm] (be) {};\\
+    \node[minimum height = 1cm, minimum width=1cm] (c) {};&&&&&&&&&&&    \node[minimum height = 1cm, minimum width=1cm] (ce) {};\\
+    \node[minimum height = 1cm, minimum width=1cm, fill=col2] (d) {};&&&&&&&&&&\node[minimum height=1cm] (action-data) {action\\data};&    \node[minimum height = 1cm, minimum width=1cm] (de) {};\\
+    &&&&&&& \\
+    &&&&&&& \\
+    \node[minimum height = 1cm, minimum width=1cm, fill=col2] (lookupkey-l) {};&\node[minimum height = 1cm, minimum width=1cm, fill=col1] (lookupkey-r) {};&&&&&&&&&& \\
+  };
+
+  \node[draw, fit = (a) (b) (c) (d)] (incoming-data) {};
+  \node[above=.5cm of incoming-data] (ingress) {Ingress\\Packet};
+
+  \node[draw, fit = (ae) (be) (ce) (de)] (egress-data) {};
+  \node[above=.5cm of egress-data] (egress) {Egress\\Packet};
+
+  \node[draw, fit = (lookupkey-l) (lookupkey-r)] (lookupkey) {};
+  \node[below=.5cm of lookupkey] (lookupkey-label) {Lookup Key};
+
+  \draw[thick, ->] (d.south) -| (lookupkey-l);
+  \draw[thick, ->] (b) -| (lookupkey-r);
+
+  \node[table, right = 1cm of lookupkey] (table) {
+    \node (key){Key}; & \node (action-tab){Action}; \\
+   10.0.0.0/24 & fwd(host1)\\
+   10.0.1.0/24 & fwd(host2)\\
+   10.0.2.0/24 & drop;\\
+    & \\
+  };
+
+\node[draw, fit = (action-code) (action-data)] (action) {};
+
+  \node [trapezium, trapezium angle=30, left= 2cm of action-data, draw, minimum width=3cm, rotate=-90] (trapez) {};
+\draw[->, thick] ($(incoming-data.east)+(0,1.1)$) --  (action-code) node[midway, above] {Data};
+
+\draw[->] ($(action-tab.north)-(2,0)$) |- node[anchor=south east] {hit} ($(trapez.south) -(0,.7)$);
+
+\node[draw, left= 1.3cm of trapez] (default) {default action};
+
+\draw[->] (default.east) -- ($(trapez.south)+(0,.93)$);
+
+\draw[->, thick] (trapez.north) -- ++(.75,0) |- (action.west);
+
+\draw[->] (lookupkey.east) -- ++(0.5,0) |- (key.west);
+
+
+\draw[->, thick] (action) -- ($(egress-data.west)-(0,.6)$);
+\end{tikzpicture}

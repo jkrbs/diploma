@@ -1,0 +1,12 @@
+\begin{tikzpicture}[every text node part/.style={align=center}]
+
+  \node[draw] (altra80-nic) {
+Mellanox\\BlueField\\ConnectX-5};
+  \node[below=.5cm of altra80-nic] (altra80-label) {altra80};
+
+  \node[draw, inner xsep=1em, inner ysep=1em, fit = (altra80-label) (altra80-nic), minimum width=3cm] (altra80) {};
+
+
+  \draw[<->] ($(altra80-nic.north) - (.5,0)$) -- node[anchor=east] {mlx5\_0}++(0,1.5)  -- node[anchor=south] {40Gib}++(1,0) -- node[anchor=west]{mlx0\_1} ($(altra80-nic.north) + (.5,0)$);
+
+\end{tikzpicture}

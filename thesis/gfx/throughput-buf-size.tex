@@ -1,0 +1,63 @@
+\begin{tikzpicture}[
+        %Environment Cfg.
+    ]
+    \begin{axis}[
+        width=\linewidth,
+        height=8cm,
+        at={(0,0)},
+        grid=major,
+        minor tick num =5,
+        minor tick style={draw=none},
+        minor grid style={thin,color=black!10},
+        major grid style={thin,color=black!10},
+        ylabel={Throughput $Gib/s$},
+        xlabel={Transfer Size $[B]$},
+        tick align=outside,
+        axis x line*=none,
+        axis y line*=none,
+        xmode = log,
+        log ticks with fixed point,
+legend style={at={(0,1,.7)},anchor=north west, draw=none},
+%        xtick={0,...,7000},
+%        ytick={0,1000,...,7000},
+        ]
+    \addplot[name path=a, mark=o,color=col1,very thick] table [x index=0,y index=1,col sep=comma] {evaluation-data/throughput.csv};
+    \addplot[name path=b, mark=x,color=col2,very thick] table [x index=0,y index=4,col sep=comma] {evaluation-data/throughput.csv};
+    \addplot[name path=c, mark=square,color=col3,very thick] table [x index=0,y index=7,col sep=comma] {evaluation-data/throughput.csv};
+    \addplot[name path=d, mark=*,color=col4,very thick] table [x index=0,y index=10,col sep=comma] {evaluation-data/throughput.csv};
+
+    %%10 perc
+    \addplot[name path=alow,color=col1!0] table [x index=0,y index=2,col sep=comma] {evaluation-data/throughput.csv};
+    \addplot[name path=blow,color=col2!0] table [x index=0,y index=5,col sep=comma] {evaluation-data/throughput.csv};
+    \addplot[name path=clow,color=col3!0] table [x index=0,y index=8,col sep=comma] {evaluation-data/throughput.csv};
+    \addplot[name path=dlow,color=col4!0] table [x index=0,y index=11,col sep=comma] {evaluation-data/throughput.csv};
+
+    %%90perc
+    \addplot[name path=ahigh,color=col1!0] table [x index=0,y index=3,col sep=comma] {evaluation-data/throughput.csv};
+    \addplot[name path=bhigh,color=col2!0] table [x index=0,y index=6,col sep=comma] {evaluation-data/throughput.csv};
+    \addplot[name path=chigh,color=col3!0] table [x index=0,y index=9,col sep=comma] {evaluation-data/throughput.csv};
+    \addplot[name path=dhigh,color=col4!0] table [x index=0,y index=12,col sep=comma] {evaluation-data/throughput.csv};
+
+    \addplot [fill=col1!40 ] fill between[of=a and alow];
+    \addplot [fill=col1!40 ] fill between[of=a and ahigh];
+
+    \addplot [fill=col2!40 ] fill between[of=b and blow];
+    \addplot [fill=col2!40 ] fill between[of=b and bhigh];
+
+
+    \addplot [fill=col3!40 ] fill between[of=c and clow];
+    \addplot [fill=col3!40 ] fill between[of=c and chigh];
+
+
+    \addplot [fill=col4!40 ] fill between[of=d and dlow];
+    \addplot [fill=col4!40 ] fill between[of=d and dhigh];
+
+    \addplot[mark=o,color=col1,very thick] table [x index=0,y index=1,col sep=comma] {evaluation-data/throughput.csv};
+    \addplot[mark=x,color=col2,very thick] table [x index=0,y index=4,col sep=comma] {evaluation-data/throughput.csv};
+    \addplot[mark=square,color=col3,very thick] table [x index=0,y index=7,col sep=comma] {evaluation-data/throughput.csv};
+    \addplot[mark=*,color=col4,very thick] table [x index=0,y index=10,col sep=comma] {evaluation-data/throughput.csv};
+
+
+    \legend{$512 B$, $1KiB$, $2KiB$, $4KiB$};
+  \end{axis}
+\end{tikzpicture}

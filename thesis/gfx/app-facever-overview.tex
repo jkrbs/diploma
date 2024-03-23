@@ -1,0 +1,25 @@
+\begin{tikzpicture}[
+        %Environment Cfg.
+    ]
+    \begin{axis}[
+        width=\linewidth,
+        height=8cm,
+        at={(0,0)},
+        grid=major,
+        minor tick num =5,
+        minor tick style={draw=none},
+        minor grid style={thin,color=black!10},
+        major grid style={thin,color=black!10},
+        ylabel={\# packets},
+        xlabel={Time [ms]},
+        tick align=outside,
+        axis x line*=none,
+        axis y line*=none,
+%        xtick={0,...,7000},
+%        ytick={0,1000,...,7000},
+        ]
+    \addplot[mark=o,color=col3,very thick] table [x index=0,y index=2,col sep=comma] {evaluation-data/dos.csv};
+    \addplot[mark=square, color=col1,very thick] table [x index=0,y index=1,col sep=comma] {evaluation-data/dos.csv};
+    \legend{Send, Recv};
+  \end{axis}
+\end{tikzpicture}

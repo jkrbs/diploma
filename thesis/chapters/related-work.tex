@@ -1,0 +1,59 @@
+% !TEX root = ../thesis.tex
+%
+% grammarly checked
+\chapter{Related Work}%
+\label{sec:related-work}\thispagestyle{scrheadings}
+This chapter discusses works by others published in this field. A prime candidate for comparison is the \ac{SDN}-based CapNet extensively discussed in Section~\ref{sec:capnet} as the goal of the work is similar to the one described in this thesis. The chapter presents other research on distributed execution environments for disaggregated systems, which are related in their vision but are not the foundation of this thesis. Further, this chapter introduces several projects that leverage programmable networks to accelerate or offload high-level applications.
+
+\section{CapNet}%
+\label{sec:capnet}
+CapNet is the first implementation of an in-network capability system. It uses OpenVSwitch's~\cite{pfaffDesignImplementationOpen} \ac{SDN} switch neutron and configures it via OpenFlow. The project's contributions are twofold. Firstly, they introduce so-called membranes for passing capability objects through untrusted components. Secondly, it proposes a capability-based access model for large-scale cloud networks as a replacement for \ac{ACL} and \ac{VLAN} based isolation methods.
+
+\textbf{Membranes.} A membrane allows passing a \enquote{sealed} capability through an untrusted network partition. The passing of capabilities requires the applications to share a rendezvous object through which communication partners can exchange capabilities.
+CapNet can encapsulate an arbitrary packet within the CapNet authentication protocol. This protocol allows the application of the access model to all preexisting applications. An application can have an initial set of capabilities necessary to bootstrap any communication. For example, it has a rendezvous capability with a global authentication broker, which can dynamically distribute capabilities to each application.
+
+\textbf{Capabilities as Network Isolation.} The second contribution of the CapNet project is replacing the \ac{ACL}-based isolation in computer networks with a fine-grained capability-based isolation mechanism. Every network flow is authenticated with a capability. This authentication scheme allows application-level isolation instead of host address and port-based isolation. The usage of capabilities introduces a new level of flexibility in cloud resource scheduling, as the permission model is not based on a service's static origin address but on the capability's ownership, which moves with the application during host migrations.
+
+The weakness of CapNet implementation is its dependence on a virtual software-based switch, which limits its performance. Follow-up work porting the ideas to programmable network hardware does not exist.
+
+%\begin{figure}[ht]
+%  \input{gfx/capnet.tex}
+%  \caption{\label{fig:capnet-arch} An architecture overview of CapNet. The \ac{SDN} controller allows packet flows between applications and nodes only if the capability spaces of the applications contain the capability used to authenticate the communication. \color{red} TODO finish figure\color{black}}
+%\end{figure}
+
+\textbf{Capability based Network Isolation.}
+The second contribution of CapNet is the usage of capabilities as a network isolation mechanism. Classically, network isolation uses \acp{ACL} based on the \ac{IP} addresses and layer 4 addressing information, like \ac{UDP} or \ac{TCP} ports. The CapNet publication criticizes this model because isolating application communication on shared hosts with the same addresses is impossible. CapNet solves this problem by requiring the capability to authorize communication between applications. An application can only get the capability by an explicit delegation.
+% \section{Key-based Routing}
+% Manzanares-Lopez \etal{}\@ take the advent of programmable networks to argue for replacing \ac{IP} addresses as routing identifiers~\cite{manzanares-lopezP4KBRKeyBasedRouting2021}\@. This idea is close to this work since capabilities are authoritative tokens to access resources and resource identifiers.
+
+\section{Distributed Capability System SemperOS}
+SemperOS by Hille~\etal{}\@~\cite{hilleSemperOSDistributedCapability2019} implements a distributed capability system. The underlying multi-kernel requires a distributed state of the capability databases. The multi-kernel design introduces races between capability-modifying operations, which the publication extensively discusses. These modification races inherently exist in systems without a central database that synchronizes requests.
+
+For the revocation of capabilities, SemperOS uses a mark and sweep style algorithm, which notifies all delegatees of the revocation. The algorithm recurses over all nodes and requests revocation. The receiving node marks the capability for deletion and notifies all local delegatees. This algorithm eventually revokes the capability on all nodes if the delegation path exists at the revocation time.
+
+\section{Distributed Execution Environments}
+Several Distributed execution environments exist, and the topic is under active development. This section discusses relevant research projects in this area and existing industry applications.
+
+\subsection{Ray}
+Ray is a distributed runtime specializing in \ac{AI} workloads, which requires heterogeneous compute architectures. It aims for a seamless integration into the existing machine learning code base. The application dynamically schedules functions to workers on remote nodes depending on the hardware requirements the user defines. Each physical node runs multiple ray-workers. A global scheduler balances the load from multiple applications across the nodes, each with a local scheduler for the worker allocation.
+
+The programming model is kept as close to existing Python code bases as possible. The user must annotate a Python class for the remote invocation and specify the resource requirements (e.g., \rust{num_gpus=2}) to enable the global scheduler to select a node that fulfills the hardware requirements.
+
+The work focuses on distributed scheduling and load balancing. The publication does not discuss the security and isolation aspects of the distributed runtime.
+
+\subsection{Apache Spark and Beam}
+Popular open-source projects like Apache Spark allow distributed execution for data-flow applications~\cite{ApacheSparkUnified}. Its design focuses on data processing and analysis tasks with programs that only use map-reduce patterns. The Apache Beam project~\cite{theapachesoftwarefoundationApacheBeam} provides a unified programming environment across different runtimes, like Apache Spark. An Apache Beam application defines a static computational graph that Beam compiles just in time to the user-selected target.
+
+\section{Dynamic Tracking Methods in P4}%
+\label{sec:tracking-rmt}
+Transmission-error-resistant network protocols, like \ac{TCP}, require flow tracking to isolate individual network connections.
+
+Hill \etal{}~\cite{hillTrackingNetworkFlows2018} implement flow-tracking in P4 by using source and destination information from the Ethernet and \ac{IP} headers. The goal of the flow-tracking in this research is DDoS prevention. Thus, there is no need for tracking individual \ac{TCP} connections. This research uses a bloom filter to store and classify packets, whether the packets originate from a heavy hitter, and whether the switch will not forward the packets to the server.
+Due to the limitations of data-plane state modification, there is no implementation of a data plane \ac{TCP} stack.
+\section{In-network key-value stores}
+A capability table is similar to a key-value store, where the capability is the key, and the value describes the action the enforcement layer shall perform. In the scenario of a P4-based in-network capability table, the actions can be dropping the request if the capability does not exist or forwarding the now-authenticated request to the owner of the corresponding object.
+These are simple network operations, depending on the request's capability ID. Due to this similarity, we discuss previous in-network key-value stores and their insert and update mechanisms.
+
+KVSwitch is an in-network load balancer for key-value stores~\cite{shiKVSwitchInnetworkLoad2019}\@. It does not implement a key-value store inside the data plane. If applications frequently access the key, KVSwitch considers it a \enquote{HotKey} and distributes access to the key-value store servers in a round-robin fashion. Non-\enquote{HotKeys} are not part of the load-balancing system, but the data plane mirrors the accesses to the control plane for statistical analysis and potential insert into the HotKeys table. The load-balancer tracks the last server used to access this key in Tofino Registers and increments it.
+
+NetCache~\cite{jinNetCacheBalancingKeyValue2017} also aims to provide load-balancing for a key-value store by caching frequently accessed items within the data plane. However, rather than distributing the load in a Round Robin fashion, it replies to the clients immediately with the cached value. To achieve cache consistency, NetCache uses a write-through cache and keeps a bitmap in a Tofino Register as a lookup of whether a cache table entry is valid. As this is a register base, a cache entry can be set invalid during the data-plane processing of an invalidation or write packet.

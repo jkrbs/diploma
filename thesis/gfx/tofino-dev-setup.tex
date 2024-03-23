@@ -1,0 +1,21 @@
+\begin{tikzpicture}
+
+  \node[minimum width=3.5cm, minimum height=2cm, matrix, matrix of nodes, column sep=1cm, row sep=1.5cm](m) {
+    & \node[draw] (bridge) {bridge interface}; && \\
+    & \node[draw] (switch) {Tofino}; & \node[draw] (cp) {Control Plane}; &\\
+    \node[draw] (service) {Service}; &&&\node[draw](client) {Client}; \\
+  };
+
+  \node[draw,inner xsep=1em, inner ysep=1em, fit= (service)] (service-netns) {};
+  \node[draw,inner xsep=1em, inner ysep=1em, fit= (client)] (client-netns) {};
+  \node[draw,inner xsep=1em, inner ysep=1em, fit= (switch) (cp)] (switch-netns) {};
+
+  \node[above=.1cm of service-netns] (sns-label){Service NetNS};
+  \node[above=.1cm of client-netns] (cns-label){Client NetNS};
+  \node[above=.1cm of switch-netns] (swns-label){Switch NetNS};
+  \draw[<->] (switch) -- (bridge);
+  \draw[<->] ($(switch.south) + (1,0)$) --++(0,-2.5) -- (client);
+  \draw[<->] ($(switch.south) - (1,0)$) --++(0,-2.5) -- (service);
+  \draw[<->] (cp.north) |- (bridge.east);
+
+\end{tikzpicture}

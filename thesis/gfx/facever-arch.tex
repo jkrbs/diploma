@@ -1,0 +1,22 @@
+\begin{tikzpicture}[every text node part/.style={align=center}]
+  \node[minimum width=3.5cm, minimum height=2cm, matrix, matrix of nodes, column sep=1cm, row sep=1cm](m) {
+    \node[fill=col1] (client) {Client}; & \node[fill=col2] (frontend) {Frontend}; &&\\
+    &&&&\\
+    \node[fill=col3] (fs) {Filesystem}; & \node[fill=col3] (storage) {Storage}; && \node[fill=col3] (gpu) {GPU}; \\
+  };
+
+
+  \draw[->] ($(client.east)+(0,.2)$) --node[anchor=south] {\step{1}} ($(frontend.west) + (0,.2)$);
+  \draw[<-] ($(client.east)-(0,.2)$)--node[anchor=north] {\step{9}} ($(frontend.west) - (0,.2)$);
+
+  \draw[->] ($(frontend.south) - (1.5,0)$)--++(0,-1) -|node[anchor=east] {\step{2}} (fs.north);
+  \draw[->] ($(fs.north)+(.5,0)$)--++(0,.6) -| node[anchor=north] {\step{3}} ($(frontend.south)-(1,0)$);
+
+  \draw[->] ($(frontend.south) + (0.5,0) $)--node[anchor=east] {\step{4}} ($(storage.north) + (0.5,0)$);
+  \draw[->] ($(storage.north) + (1,0)$)--node[anchor=west] {\step{5}} ($(frontend.south)+(1,0)$);
+
+  \draw[->] ($(frontend.east) + (0,-.25)$)-|node[anchor=north east] {\step{6}} ($(gpu.north) - (.25, 0)$);
+  \draw[->] ($(gpu.north) + (.25,0)$)|-node[anchor=west] {\step{8}} ($(frontend.east) + (0,0.25)$);
+
+  \draw[->] ($(storage.east) $)--node[anchor=south] {memcpy\\\step{7}} (gpu);
+\end{tikzpicture}

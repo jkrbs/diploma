@@ -1,0 +1,33 @@
+\begin{tikzpicture}
+  \node[minimum width=3.5cm, minimum height=2cm, matrix, matrix of nodes, column sep=5pt, row sep=4pt](m) {
+    & & \node[draw] (app) {User Application}; & & \\
+     \node (lmark) {};& & & &  \node (rmark) {};\\
+    & & \node (cap) {Request Capability}; & & \\
+    & & & & \\
+    & & \node[fill=col4] (service) {Service}; & & \\
+    & & & & \\
+    &\node[fill=col1] (sender) {Sender Thread}; & & \node[fill=col2] (receiver) {Receiver Thread}; & \\
+    & & & & \\
+    \node (klmark) {};& & & &  \node (krmark) {};\\
+    & & & & \\
+    &\node[] (ksend) {Kernel Network Stack}; & & \node[] (krecv) {Kernel Network Stack}; & \\
+  };
+
+  \node[left=.1cm of cap] (cap-num) {\step{5}};
+  \node[below=.1cm of service.center] (service-num) {\step{5}};
+  \node[left=.1cm of sender] (sender-num) {\step{7}};
+  \node[right=.1cm of sender] (receiver-num) {\step{8}};
+  \draw[->, thick] (app) --node[midway, left] {\step{1}~Invoke} (cap);
+  \draw[->, thick] (cap) --node[midway, left] {\step{4}~SendRequest} (service);
+  \draw[->, thick] (service) -|node[left] {\step{6}~Send MPSC} (sender);
+  \draw[<-, thick] (service) -|node[right] {\step{9}~Recv MPSC} (receiver);
+
+  \draw[->, thick] (sender) -- (ksend);
+  \draw[<-, thick] (receiver) -- (krecv);
+  \draw[dotted] (lmark) -- (rmark);
+  \draw[dotted] (klmark) -- (krmark);
+
+  \node[below=.2cm of klmark] (kernel-label) {Kernel};
+  \node[below=.2cm of lmark] (runtime-label) {Runtime};
+  \node[above=.2cm of lmark] (app-label) {Application};
+\end{tikzpicture}

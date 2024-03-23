@@ -1,0 +1,266 @@
+\documentclass[%
+    paper=A4,               % paper size --> A4 is default in Germany
+    twoside=false,           % onesite or twoside printing
+    openright,              % doublepage cleaning ends up right side
+    parskip=half,           % spacing value / method for paragraphs
+    chapterprefix=false,     % prefix for chapter marks
+    11pt,                   % font size
+    headings=normal,        % size of headings
+    bibliography=totoc,     % include bib in toc
+    listof=totoc,           % include listof entries in toc
+    titlepage=on,           % own page for each title page
+    captions=tableabove,    % display table captions above the float env
+    appendixprefix=false,    % display a prefix for appendix chapter
+    draft=false            % value for draft version
+]{scrreprt}%
+
+\usepackage[utf8]{inputenc}
+% \usepackage{lineno}
+% \linenumbers{}
+
+
+% **************************************************
+% Information and Commands for Reuse
+% **************************************************
+\newcommand{\thesisTitle}{Network-assisted Capability Management for Distributed Execution Environments}
+\newcommand{\thesisName}{Jakob Krebs}
+\newcommand{\thesisSubject}{Chair of Operating Systems}
+\newcommand{\thesisDate}{23.03.2024}
+\newcommand{\thesisVersion}{Draft}
+
+\newcommand{\thesisFirstReviewer}{Prof.\ Dr.-Ing.\ Horst Schirmeier}
+\newcommand{\thesisFirstReviewerUniversity}{\protect{TU Dresden}}
+\newcommand{\thesisFirstReviewerDepartment}{Chair of Operating Systems}
+
+\newcommand{\thesisSecondReviewer}{Dr.-Ing.\ Michael Roitzsch}
+\newcommand{\thesisSecondReviewerUniversity}{\protect{Barkhausen Institut}}
+\newcommand{\thesisSecondReviewerDepartment}{Composable Operating Systems Group}
+
+\newcommand{\thesisSecondSupervisor}{Dr.-Ing.\ Nils Asmussen}
+\newcommand{\thesisFirstSupervisor}{Prof.\ Mark Silberstein}
+\newcommand{\thesisThirdSupervisor}{M.Sc.\ Matthias Hille}
+
+\newcommand{\thesisUniversity}{\protect{TU Dresden}}
+\newcommand{\thesisUniversityDepartment}{Department of Computer Science}
+\newcommand{\thesisUniversityInstitute}{Institute of Systems Architecture}
+\newcommand{\thesisUniversityGroup}{Chair of Operating Systems}
+\newcommand{\thesisUniversityCity}{Dresden}
+\newcommand{\thesisUniversityStreetAddress}{}
+\newcommand{\thesisUniversityPostalCode}{01062}
+
+
+% **************************************************
+% Debug LaTeX Information
+% **************************************************
+%\listfiles
+
+
+% **************************************************
+% Load and Configure Packages
+% **************************************************
+\usepackage[english]{babel} % babel system, adjust the language of the content
+\PassOptionsToPackage{% setup clean thesis style
+    figuresep=colon,%
+    hangfigurecaption=false,%
+    hangsection=true,%
+    hangsubsection=true,%
+    sansserif=false,%
+    configurelistings=true,% -- ?
+    colorize=full,%
+    colortheme=bluemagenta,%
+    configurebiblatex=true,%
+    bibsys=biber,%
+    bibfile=thesis,%
+    bibstyle=alphabetic,%numeric,%
+    citestyle=authoryear,
+    bibsorting=nty,% -- ?
+}{cleanthesis}
+\usepackage{cleanthesis}
+\hypersetup{% setup the hyperref-package options
+    pdftitle={\thesisTitle},    %   - title (PDF meta)
+    pdfsubject={\thesisSubject},%   - subject (PDF meta)
+    pdfauthor={\thesisName},    %   - author (PDF meta)
+    plainpages=false,           %   -
+    colorlinks=false,           %   - colorize links?
+    pdfborder={0 0 0},          %   -
+    breaklinks=true,            %   - allow line break inside links
+    bookmarksnumbered=true,     %
+    bookmarksopen=true          %
+}
+
+% **************************************************
+% Other Packages
+% **************************************************
+\usepackage{scrhack}
+\usepackage{graphicx}
+\usepackage{multirow}
+\usepackage{subcaption}
+\usepackage{amsmath}
+\usepackage{pdfpages}
+\usepackage[withpage]{acronym}
+\usepackage{multicol}
+\usepackage{tikz}
+\usepackage{pgfplots}
+\pgfplotsset{compat=1.18}
+\usetikzlibrary{automata, matrix, shapes.geometric, arrows, calc, fit, positioning, chains, arrows.meta, hobby}
+\usepgfplotslibrary{fillbetween, statistics}
+\usetikzlibrary{patterns}
+\usepackage[nottoc,chapter]{tocbibind}
+\usepackage{booktabs}
+\usepackage{tudcolors}
+\colorlet{col1}{tudaccent1!60}
+\colorlet{col2}{tudaccent2!60}
+\colorlet{col3}{tudaccent3!60}
+\colorlet{col4}{tudaccent4!60}
+\colorlet{col5}{tudaccent5!60}
+\colorlet{col6}{tudaccent6!60}
+
+% minted
+\usepackage[chapter]{minted}
+\setminted{autogobble=true, linenos=true, breaklines=true}
+\usemintedstyle{friendly}
+\usepackage{mathtools}
+\usepackage{fontawesome}
+\usepackage{listings}
+\usepackage{microtype}
+\usepackage{makecell}
+\usepackage[underline=false]{pgf-umlsd}
+\definecolor{listinggray}{gray}{0.92}
+\lstset{ %
+   language=[LaTeX]TeX,
+   breaklines=true,
+   frame=single,
+   basicstyle=\footnotesize\ttfamily,
+   backgroundcolor=\color{listinggray},
+   keywordstyle=\color{blue}
+ }
+ % **************************************************
+% Own commands for use within the thesis
+% **************************************************
+
+% fix fonts
+\renewcommand\cfttoctitlefont{\usekomafont{chapter}}
+\renewcommand\cftloftitlefont{\usekomafont{chapter}}
+\renewcommand\cftlottitlefont{\usekomafont{chapter}}
+
+\hypersetup{% setup the hyperref-package options
+    pdftitle={\thesisTitle},    %   - title (PDF meta)
+    pdfsubject={\thesisSubject},%   - subject (PDF meta)
+    pdfauthor={\thesisName},    %   - author (PDF meta)
+    plainpages=true,           %   -
+    colorlinks=true,           %   - colorize links?
+    pdfborder={0 0 0},          %   -
+    breaklinks=true,            %   - allow line break inside links
+    bookmarksnumbered=true,     %
+    bookmarksopen=true          %
+}
+\captionsetup[subfigure]{font=footnotesize,
+              labelfont=up,
+              %%singlelinecheck=false,
+              %%format=hang,
+              justification=centering % <-- new
+             }
+
+\makeatletter
+\let\l@listing\l@figure
+\makeatother
+\newcommand*{\rust}[1]{\mintinline{rust}{#1}}
+\newcommand*{\cpp}[1]{\mintinline{cpp}{#1}}
+\newcommand*{\langpfour}{P4\_16}
+\newcommand*{\pfour}[1]{\mintinline{cpp}{#1}}
+\newcommand*{\etal}{et\ al.\@}
+\newcommand*{\tofino}{Intel\textregistered{} Tofino}
+\newcommand*\step[1]{\tikz[baseline=(char.base)]{
+    \node[shape=circle,draw,fill=black,text=white,inner sep=1pt] (char) {#1};}
+}
+\usepackage[automark,ilines]{scrlayer-scrpage}
+
+\thispagestyle{scrheadings}
+
+
+\begin{document}\sloppy
+
+
+% uncomment the following command to fill up pages with
+% whitespace instead of aligning the first and last lines
+% of a page (see \raggedbottom vs. \flushbottom)
+\raggedbottom{}
+
+% --------------------------
+% rename document parts
+% --------------------------
+
+% > set short label names for floating environments figure and table
+%\renewcaptionname{ngerman}{\figurename}{Abb.}
+%\renewcaptionname{ngerman}{\tablename}{Tab.}
+\newcaptionname{english}{\figurename}{Fig.}
+\newcaptionname{english}{\tablename}{Tab.}
+
+% > rename the title of the LOL, i.e. list of listings (default is "Listings")
+\renewcommand*{\lstlistlistingname}{List of Listings}
+
+% --------------------------
+% Front matter
+% --------------------------
+\pagenumbering{roman}			% roman page numbing (invisible for empty page style)
+\pagestyle{empty}				% no header or footers
+\input{chapters/titlepages}		% INCLUDE: all titlepages
+
+\includepdf{task-description.pdf}
+
+		% display just page numbers
+\input{chapters/abstract}		% INCLUDE: the abstracts (english and german)
+\clearpage
+\input{chapters/acknowlegements.tex}
+\cleardoublepage
+% - keep this comment here!
+\currentpdfbookmark{\contentsname}{toc}
+\setcounter{tocdepth}{1}		% define depth of toc
+\tableofcontents				% display table of contents
+\clearpage
+
+% --------------------------
+% Body matter
+% --------------------------
+\pagenumbering{arabic}			% arabic page numbering
+\setcounter{page}{1}			% set page counter
+\pagestyle{maincontentstyle}
+
+\include{chapters/motivation}
+
+\include{chapters/background}
+\include{chapters/related-work}
+\include{chapters/design}
+\include{chapters/implementation}
+\include{chapters/evaluation}
+\include{chapters/conclusion}
+
+\appendix
+\setstretch{1.1}
+\renewcommand{\bibfont}{\normalfont\small}
+\setlength{\biblabelsep}{0pt}
+\setlength{\bibitemsep}{0.5\baselineskip plus 0.5\baselineskip}
+\thispagestyle{scrheadings}
+\bibliographystyle{plain}
+\thispagestyle{scrheadings}
+\printbibliography[nottype=online]
+\printbibliography[heading=subbibliography,title={Web pages},type=online]
+\clearpage
+\pagestyle{scrheadings}
+\thispagestyle{scrheadings}
+\listoffigures
+\clearpage
+\addcontentsline{toc}{chapter}{List of Listings}
+\lstlistoflistings{}
+\clearpage
+
+\include{chapters/glossary}
+\clearpage
+
+% \input{content/chapter-appendix}       % INCLUDE: appendix
+% \cleardoublepage
+% \input{content/colophon}
+\cleardoublepage
+\input{chapters/declaration}
+\clearpage
+\end{document}

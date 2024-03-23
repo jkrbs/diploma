@@ -1,0 +1,20 @@
+\documentclass{standalone}
+\usepackage{tikz}
+\usepackage{xcolor}
+
+\usetikzlibrary{automata, matrix, shapes.geometric, arrows, calc, fit, positioning, chains, arrows.meta, hobby}
+\usepackage{../tudcolors}
+\colorlet{col1}{tudaccent1!60}
+\colorlet{col2}{tudaccent2!60}
+\colorlet{col3}{tudaccent3!60}
+\colorlet{col4}{tudaccent4!60}
+\colorlet{col5}{tudaccent5!60}
+\colorlet{col6}{tudaccent6!60}
+
+\newcommand*\step[1]{\tikz[baseline=(char.base)]{
+    \node[shape=circle,draw,fill=black,text=white,inner sep=1pt] (char) {#1};}
+}
+
+\begin{document}
+\input{dataplane.tex}
+\end{document}

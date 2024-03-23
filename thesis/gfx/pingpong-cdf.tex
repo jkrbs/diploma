@@ -1,0 +1,23 @@
+\begin{tikzpicture}
+  \begin{axis}[
+%        ybar,
+        width=\linewidth,
+        height=4cm,
+        grid=major,
+        minor tick num =5,
+        minor tick style={draw=none},
+        minor grid style={thin,color=black!10},
+        major grid style={thin,color=black!10},
+        ylabel={Probability},
+        xlabel={Exec Time $[\mu{}s]$},
+        tick align=outside,
+        axis x line*=none,
+        legend style={at={(.5,.3)},anchor=south},
+        axis y line*=none,]
+    \addplot[very thick, color=col3] table [x index=0,y index=1,col sep=comma] {evaluation-data/pingpong-cdf.csv};
+    \addplot[very thick, color=col5] table [x index=0,y index=1,col sep=comma] {evaluation-data/pingpong-cdf-wo-tofino.csv};
+
+    \addplot[very thick, color=col1] table [x index=0,y index=1,col sep=comma] {evaluation-data/pingpong-cdf-fractos.csv};
+    \legend{w/ switch, w/o switch, FractOS};
+  \end{axis}
+\end{tikzpicture}

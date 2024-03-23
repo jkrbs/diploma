@@ -1,0 +1,28 @@
+\begin{tikzpicture}
+  \begin{axis}[
+        xbar,
+        width=\linewidth,
+        height=8cm,
+        at={(0,0)},
+        grid=major,
+        minor tick num =5,
+        minor tick style={draw=none},
+        minor grid style={thin,color=black!10},
+        major grid style={thin,color=black!10},
+        ylabel={Batch Size},
+        enlargelimits=0.15,
+        ytick={256, 512, 1024},
+        yticklabels = {256, 512, 1024},
+        tick align=outside,
+        axis x line*=none,
+        axis y line*=none,
+        ymode = log,
+    xlabel = {Average Response Time [ms]},
+    legend style={at={(1,0.02)},anchor=south east},
+  ]
+    \addplot+[color=col5, fill=col5] table[x index=1, y index = 0, col sep=comma] {evaluation-data/facever-fractos-baseline.csv};
+    \addplot+[color=col1, fill=col1] table[x index=1, y index = 0, col sep=comma] {evaluation-data/facever-tcap.csv};
+    \addplot+[color=col3, fill=col3] table[x index=1, y index = 0, col sep=comma] {evaluation-data/facever-fractos.csv};
+    \legend{rCuda, tcap, FractOS}
+  \end{axis}
+\end{tikzpicture}

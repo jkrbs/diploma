@@ -1,0 +1,26 @@
+\begin{tikzpicture}[every text node part/.style={align=center}]
+  \node[minimum width=3.5cm, minimum height=2cm, matrix, matrix of nodes, column sep=5pt, row sep=4pt](switch) {
+    \node (c-tl) {};&&\node[fill=col2] (control-plane) {Control-plane application\\
+Intel Pentium D1517 @ 1.60GHz}; && \node (c-tr) {};\\
+    &&&&\\
+    \node (c-bl) {};&&\node[fill=col1] (data-plane) {data-plane application}; && \node (c-br) {};\\
+  };
+
+  \node[left=2cm of data-plane] (client1) {};
+  \node[fill=col4, below=1cm of client1] (client2) {Client};
+  \node[fill=col4, below=1cm of client2] (client3) {Client};
+  \node[fill=col4, below=1cm of client3] (client4) {Client};
+  \node[fill=col3, right=6cm of client2] (service1) {Service1};
+  \node[fill=col3, below=1cm of service1] (service2) {Service2};
+
+
+  \draw[<->] (client2.east) -| ($(data-plane.south) - (1.5,0)$);
+  \draw[<->] (client3.east) -| ($(data-plane.south) - (1,0)$);
+  \draw[<->] (client4.east) -| ($(data-plane.south) - (.5,0)$);
+
+  \draw[<->] (service1.west) -| ($(data-plane.south) + (1.5,0)$);
+  \draw[<->] (service2.west) -| ($(data-plane.south) + (1,0)$);
+
+  draw[<->]  (data-plane) --node[anchor=west] {Config and \ac{RMT} modification} (control-plane);
+
+\end{tikzpicture}

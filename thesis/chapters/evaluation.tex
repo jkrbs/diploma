@@ -1,0 +1,342 @@
+\chapter{Evaluation}\label{chapter:evaluation}\thispagestyle{scrheadings}
+This chapter presents the evaluation of this work's design and implementation. We begin by describing the setup we use to perform the evaluation benchmarks. Afterward, we discuss each performance characteristic, including a benchmark and results. This includes interpretations of the benchmark results.
+
+The main performance characteristics of a distributed execution environment are the \ac{RPC} latencies and the throughputs a memory transfer can achieve. We measure these characteristics with micro-benchmarks. As we propose using \ac{CPS} applications, we evaluate this choice by comparing the execution times of \ac{CPS} vs.\@ return-style applications. In addition, we provide an application benchmark to evaluate the effects of our system on real-world applications.
+
+The evaluation results only include successful benchmark runs and do not include an analysis of error rates or causes.
+% Grammarly checked
+\section{Evaluation Setup}
+This section presents the host configurations and network setup used to run the benchmarks.
+Figure~\ref{eval:fig:setup} presents the evaluation's two server configurations. We cannot run all benchmarks on the same system, as our implementation requires a Tofino switch, which is only available to use with the \texttt{acsl2} server. For baseline measurements of the FractOS meta-operating system, we require an Infiniband network card, which is not available on the \texttt{acsl2} server.
+\begin{figure}[H]
+  \centering
+  \begin{subfigure}[b]{0.49\textwidth}
+    \centering
+    \input{gfx/eval-setup-acsl2.tex}
+    \caption{\label{fig:acsl2} ascl2}
+  \end{subfigure}
+  \begin{subfigure}[b]{0.49\textwidth}
+    \centering
+    \input{gfx/eval-setup-altra80.tex}
+    \caption{\label{fig:altra80} altra80}
+  \end{subfigure}
+  \caption{\label{eval:fig:setup} Description of the hosts used in the evaluation.}
+\end{figure}
+
+We use the left system in Figure~\ref{fig:acsl2}, \texttt{acsl2}, to run all benchmarks with our implementation. The central component of this setup is the Barefoot Wegde 100BF-32X switch with a Barefoot/Intel Tofino 1 chip that runs the data plane application. As a control plane, it has an Intel(R) Pentium(R) D1517 \ac{CPU} with a turbo-frequency of $1.60 GHz$ and $8 GiB$ system memory. All \emph{tcap} runtime components and applications run on the same server, referred to as \texttt{acsl2}. It features two Intel(R) Xeon(R) Silver 4216 \acp{CPU} that turbo up to 2.10 GHz with combined 32 Cores and disabled hyperthreading. \texttt{acsl2} has 192GiB system memory and an Intel Ethernet Controller E810-C with two $25 Gib/s$ network ports. The \texttt{acsl2} server runs Ubuntu version 20.04.6 LTS with Linux kernel 5.4.0--131.\@
+
+In order to run the FractOS baseline measurements, we use the system in Figure~\ref{fig:altra80}\@. We refer to it as \texttt{altra80}.\@ \texttt{altra80} is an Ampere ARM-based server featuring an Ampere Altra Neoverse-N1 80 Core \ac{CPU}, $256 GiB$ of memory, and an Nvidia MT416842 BlueField ConnectX-5 network card with driver version 23.10--1.1.9.0. The \texttt{altra80} server runs Debian version 12.4--bookworm with Linux kernel 6.1.69--1.\@
+
+The network interfaces on all hosts are isolated into individual Linux network namespaces. If not stated otherwise, the Rust benchmark applications are compiled in release mode of the Rust compiler version 1.76.0-nightly. The control plane is compiled with \texttt{gcc} version 11.3.0 with optimization level 3 and runs pinned to an exclusive \ac{CPU} core. We use the Barefoot Software Development Environment version 9.11.0 to compile the data plane application.
+
+\subsection{Baselines}\label{sec:eval-baseline}
+We compare our work against the FractOS meta-operating system, which we consider a baseline for our measurements. As discussed earlier, we must use different physical machines to perform the measurements. Therefore, the measurement results are not fully comparable; instead,  they provide an estimate for performance comparison.
+The experiments use a FractOS version from June 2022\footnote{commit id: fffc6bc75a7d6372b89209154586ed6f5798fd8b}. We observe stability problems with this version on the \texttt{altra80} server, but we could perform at least limited benchmark runs. Newer versions do outright not work on this system. Network transmission errors cause the instability, as the FractOS implementation has no mechanism for retransmissions or error recovery. The lack of any error handling for tranmission errors leads to the blocking of high-level applications, as the OS waits indefinityly for correct network packets to arrive.
+
+For the application benchmark and the throughput measurements, we use the numbers from the FractOS EuroSys 2022 publication reports~\cite{vilanovaSlashingDisaggregationTax2022}.\@
+
+For further comparability, we include roundtrip latency measurements of \ac{gRPC} since it is a heavily used \ac{RPC} framework at the time of writing. \ac{gRPC} is an HTTP-based protocol that does not optimize for low latencies.
+
+To evaluate overheads introduced by the in-network capability system, we perform latency micro-benchmarks with and without it. In the measurements without it, the Tofino runs a classical network switch application.
+
+\section{Latency Measurements}
+One of the critical aspects of a distributed runtime is the latency a \ac{RPC} introduces. We measure the latency with three benchmarks. Firstly, we measure the raw latency of a \ac{RPC}. To do so, we use a ping-pong benchmark that sends a request to a server, which immediately returns. Secondly, we perform this benchmark with a prior delegation of capabilities to evaluate the dependence of the latency on the size of the capability tables. Lastly, we evaluate the effects of the chosen \ac{CPS} programming model on the response time of applications.
+
+\subsection{RPC Roundtrip Latency}
+We use a ping-pong benchmark for the roundtrip \ac{RPC} latency measurements. The benchmark invokes a remote request capability, which immediately returns. The response time of the invocation is the round trip latency of a \ac{RPC}.
+
+The average roundtrip latency for a \ac{RPC} to an empty function with the \emph{tcap} system is $57.14 \mu s$. Figure~\ref{fig:rtt-cdf} shows the distribution of the measurements.
+
+\begin{figure}[H]
+  \centering
+  \input{gfx/pingpong-cdf.tex}
+  \caption{\label{fig:rtt-cdf} \ac{CDF} of the roundtrip latency of the ping-pong benchmark on the in-network accelerated system and the FractOS baseline}
+\end{figure}
+%% jkrebs@altra80: ~ ➜ netperf -t UDP_RR 10.10.10.1 -- -o min_latency,mean_latency,max_latency,stddev_latency,transaction_rate
+% MIGRATED UDP REQUEST/RESPONSE TEST from 0.0.0.0 (0.0.0.0) port 0 AF_INET to localhost () port 0 AF_INET : demo : first burst 0
+% Minimum Latency Microseconds,Mean Latency Microseconds,Maximum Latency Microseconds,Stddev Latency Microseconds,Transaction Rate Tran/s
+% 16,26.21,2328,5.23,37930.376
+
+
+
+%% gRPC
+%% DescribeResult(nobs=200, minmax=(105.585232, 122.047994), mean=112.00064935, variance=10.294091649339144, skewness=-0.43019804348707996, kurtosis=-0.45075466597951497)
+%% tcap random sample
+%%DescribeResult(nobs=200, minmax=(50, 91), mean=57.06, variance=53.936080402010056, skewness=2.8843489859688374, kurtosis=8.119771102349413)
+\begin{table}[H]
+  \centering
+  \begin{tabular}{lcccc}
+    \toprule
+    System & Average [$\mu s$] & $\sigma$ [$\mu s$] & Min [$\mu s$] & Max [$\mu s$]\\
+    \midrule
+    tcap w/& 57.06&7.34&50 &91 \\
+    tcap w/o & 52.01& 6.67 & 43.06 & 75.24\\
+    FractOS & 9.82 & 0.55 &9.40 & 10.79 \\
+    gRPC & 112.00 & 3.21 & 105.59& 122.05 \\
+    \bottomrule
+  \end{tabular}
+  \vspace{1em}
+  \caption{\label{table:roundtrip} The roundtrip \ac{RPC} latency without any additional capabilities existing in the system. The statiscial metrics result from 1000 samples. The tcap w/ measuremnt is with the in-network capability system, whereas the w/o uses a classical network switch implementation on the data plane.}
+\end{table}
+
+This latency is $6.1$ times higher than the FractOS baseline. Multiple factors cause this enormous difference. Firstly, FractOS uses \ac{RDMA} over Infiniband as a communication interface, whereas \emph{tcap} uses \ac{UDP} over \ac{IPv4} on Ethernet. The Infiniband roundtrip latency is $6.5 \mu{}s$ compared to the $26.21 \mu{}s$ on loopback network interfaces. The network topology between the systems differs. The FractOS host communicates via a loopback cable between its two Infiniband ports. Secondly, the \emph{tcap} setup's network setup involves a network switch and thus longer latencies. The raw \ac{UDP} roundtrip latency in this setup is $31.52\mu{}s$. These two factors explain the vast difference in the measurement results.
+
+The roundtrip latency is dependent on the number of capabilities in the system. The time of a capability lookup in the node-local capability table and the lookup time in the switch is constant. Figure~\ref{fig:roundtrip-ping-pong} shows that these claims are correct and that the roundtrip time is constant concerning the number of capabilities in the system.
+
+\begin{figure}[H]
+  \centering
+  \input{gfx/eval-pingpong.tex}
+  \caption{\label{fig:roundtrip-ping-pong} The average roundtrip latency in the ping-pong benchmark is independet of the number of capabilities existing in the system. The bands around each line mark the 10th to 90th percentile.}
+\end{figure}
+
+As Figure~\ref{fig:roundtrip-ping-pong} shows, the additional switch latency introduced by the in-network application is constant. The Figure reports the average latency of 1000 \acp{RPC}.
+
+\subsection{Latency Improvements by the Programming Model}
+Chapter~\ref{chapter:design} argues that the \ac{CPS} programming model is suitable for distributed execution environments as it reduces the number of node-to-node communications and, therefore, reduces the response time. To evaluate that claim, we compare the execution time of two computational graphs. The graphs consist of a processing pipeline executing $N$ functions. As a chain using the \ac{CPS} model, it requires $N+1$ network transfers, compared to the $2N$ transfers required with classical function returns. Figure~\ref{fig:call-graphs} shows the computational graphs we compare. We perform calls to $N$ short request handlers. Due to implementation limitations, the \emph{tcap} library only supports four capability parameters to a request. Thus, we simulate the ideal pattern (Figure~\ref{fig:chain-ideal}) by a cyclic call across alternating nodes (Figure~\ref{fig:chain-real}). To illustrate the nodes on which a function will execute, we denote the two nodes as $@s1$ and $@s2$ in Figure~\ref{fig:call-graphs}. Each function call is to another node and involves a network transfer.
+For comparability, we implement the same benchmarks, including the adaption to the call chain, in FractOS instead of relying on the pre-existing micro-benchmark suite that implements the chain call pattern like in Figure~\ref{fig:chain-ideal}.\@
+
+\begin{figure}[ht]
+  \centering
+  \begin{subfigure}[b]{0.3\textwidth}
+         \centering
+         \begin{tikzpicture}[every text node part/.style={align=center},initial text=$ $]
+           \matrix[matrix of nodes,, column sep=0.5cm, row sep=.5cm] (n) {
+           &
+           \node[state] (short0) {short\\@s2}; \\
+           & \node[state] (short1) {short\\@s2}; \\
+\node[initial, state] (main) {main\\@s1}; & \node[] (short2) {}; \\
+           & \node[state] (short3) {final}; \\
+           };
+
+           \draw[->] (main.north) to[bend left] node[anchor=south,sloped] {1} (short0.west);
+           \draw[<-] (main.north) to[bend left] node[anchor=north,sloped] {2} (short0.south west);
+           \draw[->] (main) to[bend left] node[anchor=south,sloped] {3} (short1);
+           \draw[<-] (main) to[bend right] node[anchor=north,sloped] {4} (short1);
+           \draw[->] (main) to[bend left] node[anchor=south,sloped]{$N - 2$} (short3);
+           \draw[<-] (main) to[bend right] node[anchor=north,sloped]{$N$} (short3);
+         \end{tikzpicture}
+         \caption{\label{fig:star}Star shaped call pattern}
+       \end{subfigure}
+       \hfill
+   \begin{subfigure}[b]{0.3\textwidth}
+         \centering
+         \begin{tikzpicture}[every text node part/.style={align=center},initial text=$ $]
+           \matrix[matrix of nodes,, column sep=1cm, row sep=.5cm] (n) {
+           \node[initial] (main) {main\\@s1}; &
+           \node[state] (short0) {short\\@s2}; \\
+           & \node[state] (short1) {short\\@s1}; \\
+           & \node[state] (short2) {\vdots}; \\
+           & \node[state] (short3) {short\\@s1}; \\
+           & \node[state] (short4) {final\\@s2}; \\
+           };
+
+           \draw[->] (main) --node[anchor=north] {1} (short0);
+           \draw[->] (short0) --node[anchor=east] {2} (short1);
+           \draw[->] (short1) --node[anchor=east] {3} (short2);
+           \draw[->] (short2) --node[anchor=east] {$N-1$} (short3);
+           \draw[->] (short3) --node[anchor=east] {$N$} (short4);
+         \end{tikzpicture}
+         \caption{\label{fig:chain-ideal}Chain shaped call pattern}
+    \end{subfigure}
+    \hfill
+   \begin{subfigure}[b]{0.3\textwidth}
+         \centering
+         \begin{tikzpicture}[every text node part/.style={align=center},initial text=$ $]
+           \matrix[matrix of nodes,, column sep=1cm, row sep=.5cm] (n) {
+           \node[initial] (main) {main\\@s1}; &
+           \node[state] (short0) {short\\@s2}; \\
+           & \node[state] (short1) {short\\@s1}; \\
+           & \node[state] (short3) {final\\@s2}; \\
+           };
+
+           \draw[->] (main) -- (short0);
+           \draw[->] (short0) to[bend left] (short1);
+           \draw[->] (short1) to[bend left] (short0);
+           \draw[->] (short1) --node[anchor=east] {$2\cdot + 2$}  (short3);
+         \end{tikzpicture}
+         \caption{\label{fig:chain-real}Adapted Chain shaped call pattern}
+    \end{subfigure}
+  \caption{\label{fig:call-graphs} A comparision of a return-based (a) and a continuation-based call graph of $depth$ function calls. The key insight is, that a return to the caller is not necessery in \ac{CPS}. This unnecessery return can be omitted, reducing the communication overhead. The benchmark implements (c) instead of (b), due to limitations of the tcap interface.}
+\end{figure}
+
+Firstly, we measure the execution times with a fixed depth of calls. Figure~\ref{fig:eval-star-chain-distribution} presents \acp{CDF} of average execution times \emph{per function call} for call graph multiple depths. The star-shaped call pattern incurs significantaly longer tail latencies,
+\begin{figure}[H]
+  \centering
+    \resizebox{\textwidth}{!}{
+      \input{gfx/eval-star-hist.tex}
+    }
+  \caption{\label{fig:eval-star-chain-distribution} \ac{CDF} of \emph{per-function call} execution times for star and chain graphs aggregated over all depth measurements.}
+\end{figure}
+
+
+Table~\ref{tab:star-chain-results} presents the statistical evaluation of the benchmark with a varying depth—the execution time scales linearly with the depth of the execution graph. Figure~\ref{fig:std-chain-abs} shows the average roundtrip time dependent on the depth. This observation shows that the runtime overheads are independent of the depth of the request chain and constant per request.
+
+\begin{table}
+  \resizebox{\textwidth}{!}{
+  \begin{tabular}{l|cccc|cccc}
+    \toprule
+    & \multicolumn{4}{c}{Star}&  \multicolumn{4}{c}{Chain} \\
+    Depth & Mean [ms] & C.o.V. & Min  [ms]& Max  [ms]& Mean  [ms]& C.o.V & Min  [ms]& Max  [ms]\\
+    \midrule
+10 & 1.09 & 0.06 & 0.97 & 1.21 & 0.37 & 0.08 & 0.32 & 0.42\\
+100 & 5.57 & 0.05 & 4.9 & 6.09 & 3.11 & 0.04 & 2.74 & 3.27\\
+1000 & 50.3 & 0.06 & 43.89 & 53.36 & 26.67 & 0.03 & 24.14 & 27.37\\
+2000 & 92.36 & 0.06 & 82.71 & 97.42 & 51.99 & 0.05 & 46.3 & 54.23\\
+3000 & 136.21 & 0.08 & 112.13 & 145.03 & 77.03 & 0.06 & 69.24 & 80.47\\
+4000 & 184.26 & 0.06 & 163.07 & 192.95 & 104.98 & 0.05 & 94.92 & 109.2\\
+5000 & 228.56 & 0.06 & 205.08 & 240.35 & 127.4 & 0.06 & 115.65 & 134.86\\
+6000 & 278.78 & 0.06 & 247.42 & 291.92 & 152.87 & 0.06 & 137.83 & 161.64\\
+7000 & 319.42 & 0.07 & 282.98 & 338.0 & 175.08 & 0.06 & 161.68 & 187.78\\
+    \bottomrule
+  \end{tabular}
+}
+\vspace{1em}
+  \caption{\label{tab:star-chain-results} Raw benchmark results from star and chain call pattern benchmark on the tcap runtime.}
+\end{table}
+
+ \begin{figure}[H]
+   \centering
+   \input{gfx/eval-star-chain-abs.tex}
+   \caption{\label{fig:std-chain-abs} Scaling behaviour of chain and star calling pattern, relative to the depth of the call. The bands mark the 10th to 90th percentile.}
+ \end{figure}
+
+For large $N$, the average ratio is $1.80$\@. Considering only the network communication, the theoretical ratio is $2$. This measurement suggests that the runtime introduces linear overheads in the number of requests. The shortcoming could cause this overhead that the current runtime implementation creates capability objects for every continuation and inserts them into the local capability table, which happens at every request execution. Further, the adapted chain implementation requires the chain request handler to count the number of calls to it and is thus more complicated than the simple return handler of the star server.
+
+Due to the stability problems explained in Section~\ref{sec:eval-baseline}, we were not able to run measurements to the same degree as for our own system. The measurements only cover call depths smaller than $10$. For those, we observe a similar scaling behavior as for this work's implementation. Table~\ref{tab:star-chain-fractos-results} presents the results. Note, that these are average values of only 5 iterations of the experiement. Figure~\ref{fig:eval-star-chain-fractos} shows the scaling behavior of the star and chain patterns.
+
+
+\begin{table}[H]
+  \centering
+  \begin{tabular}{l|cccc|cccc}
+    \toprule
+    & \multicolumn{1}{c}{Star}&  \multicolumn{1}{c}{Chain} \\
+    Depth & Mean [$\mu{}s$] & Mean  [$\mu{}s$]\\
+    \midrule
+    2& 100.86& 37.92\\
+    4& 154.11&  85.31\\
+    6 & 262.21& 126.61\\
+    8& 371.21& 147.39\\
+    10& 451.34& 181.73\\
+    \bottomrule
+  \end{tabular}
+\vspace{1em}
+  \caption{\label{tab:star-chain-fractos-results} Raw benchmark results from star and chain call pattern benchmark on the FractOS meta-\ac{OS}.}
+\end{table}
+
+\begin{figure}[H]
+  \centering
+  \input{gfx/star-chain-fractos.tex}
+  \caption{\label{fig:eval-star-chain-fractos} Latency of call patterns dependend on the depth of calls. (lower is better)}
+\end{figure}
+
+% Grammarly checked
+\section{Throughput Measurements}\label{sec:eval:throughput}
+High throughput memory transfers are a crucial feature of a distributed runtime. Due to the proof-of-concept character of the \emph{tcap} library, it needs to be performance-tuned and uses a simple data transfer protocol as Section~ ef {sec:impl:memory} describes. It has a hardcoded buffer size for memory transfer operations. The throughput of the system is dependent on the packet buffer size used, as this determines the number of packets required for a transfer. The current implementation only supports a fixed transfer buffer size, which is not configurable by the application but is a compile-time constant. We evaluate the memory transfer rate with different buffer sizes.
+
+\begin{figure}[H]
+  \centering
+  \resizebox{\textwidth}{!}{
+    \input{gfx/throughput-buf-size.tex}
+  }
+  \caption{\label{fig:eval-throughput-buf-size} Transfer rates of \texttt{MemoryCopy} operations dependent on the amount of data copied. The runtime uses $512B$, $1KiB$, $2KiB$, and $4KiB$ as transfer buffer sizes in the experiment variations. The bands around each line mark the 10th to 90th percentile.}
+\end{figure}
+
+Figure~\ref{fig:eval-throughput-buf-size} shows the transfer rates archivable with different buffer sizes. The server connects to the Tofino switch with two $25 Gib/s$ links, one link for the server application and one for the client application.
+The low network saturation in the throughput micro-benchmarks shows that the \emph{tcap} library cannot fully utilize the network, and thus, we cannot show the limits to the scaling behavior.
+The low transfer rates are caused by using the Linux socket \ac{API} instead of a kernel-bypass networking stack, having a single sender and receiver thread with relatively small buffer sizes. The maximum transfer rates of up to $1.5 Gib$ net transfer rate and $~1.7 Gib$, including the protocol overheads of the capability-based access protocol and all layers below (\ac{UDP}, \ac{IPv4} and Ethernet). The current \emph{tcap} library implementation cannot fully utilize the Intel Tofino switching capacity. Profiling application traces of the benchmark application show that the process spends the majority ($>70\%$) of the wall time within the socket send and receive functions or waiting for network operations to finish. Therefore, we conclude that the socket \ac{API} usage is a central limitation for the memory transfer performance.
+
+The FractOS baseline can saturate the Infiniband \ac{NIC} deployed in the host. It achieves this high performance because it only uses its protocol for setting up the \ac{RDMA} memory regions. The actual memory transfers use the libibverbs Infiniband implementations.
+
+% Grammarly checked
+\section{Denial of Service Protection}
+In order to show that the in-network application performs as a cache, we test it as denial of service protection. Section~\ref{sec:design-dos-protection} discusses this behavior in detail. We evaluate this behavior by sending a constant stream of accesses to the same invalid capability via the switch. The measurement in Figure~\ref{fig:dos-protection} shows the number of packets sent by the client and how many of those are arriving at the service. As soon as the control plane finishes invalidating the capability, the number of packets arriving at the service drops to zero. This measurement shows the effectiveness of this feature. The client sends $~300 packets/ms$ for 30 seconds.
+
+\begin{figure}[H]
+  \centering
+  \input{gfx/eval-dos-protection.tex}
+  \caption{\label{fig:dos-protection} Number of unsolicited packets arriving on the service host compared with the number of packets sent by the attacker.}
+\end{figure}
+Preventing denial-of-service attacks effectively is a crucial feature made possible by a centralized enforcement component in a distributed capability system.
+
+\section{Application Benchmark: Face Verification}
+Micro-benchmarks do not suffice to provide a perspective on the real-world behavior of a system. Real applications must be implemented and evaluated on the system to provide such a holistic perspective.
+
+For comparability to the FractOS baseline, we simulate the workload mixture of the face-verification applications benchmark available for FractOS~\cite{vilanovaSlashingDisaggregationTax2022}.\@ The benchmark comprises a processing pipeline for the system that is supposed to authenticate humans with a face-verification \ac{GPU} program. Figure~\ref{fig:facever-overview} depicts the processing pipeline. It consists of a client sending a picture to a frontend service to authenticate a user by a picture of their face. The front end connects to a filesystem service, which provides a handle with which a service can load a face detection model from the storage service. The front end passes the handle and the initial request picture to a \ac{GPU} service, which verifies and returns the result to the front end, which finally replies to the client.
+
+\begin{figure}[H]
+  \centering
+  \input{gfx/facever-arch.tex}
+  \caption{\label{fig:facever-overview} The processing pipeline of the face verification app.}
+\end{figure}
+Due to the limited time scope of this work, the \emph{tcap}-based implementation is not a working implementation of the benchmark application but a cycle-accurate simulation. The simulation includes the data transfers with the same sizes but omits the data loading from storage and the \ac{GPU} computation and replaces it with sleeps. The length of the sleep is cycle-accurate and matches the FractOS implementation. Steps \step{1} to \step{9} in Figure~\ref{fig:facever-overview} show the communication steps.
+
+We perform the benchmark with three batch sizes, determining the size of the memory transfers and processing time.
+The results in Figure~\ref{fig:facever-scaling} show that the high latency overhead shown in the micro benchmarks is less severe under a real-world workload but is significant. The latency overhead of the \emph{tcap}-based implementation for the 1024 byte batch size is 22\% compared to the $>600\%$ in the micro benchmarks.
+\begin{figure}[H]
+  \centering
+  \input{gfx/eval-facever-boxplot.tex}
+  \caption{\label{fig:facever-scaling} The end-to-end execution time of the face verification application depends on the size of the data transfers. (lower is better)}
+\end{figure}
+
+%% Compute Times:
+%% gpu = lambda t,c: 13 * t * c
+%% storage = lambda t,c: 3 * t * c
+%% fs = 10000
+%% all = lambda t: gpu(t, 210) + fs + storage(t,210)
+%% >>> all(1024)/(2*1000) = 1725.32 # I have no idea, where the factor 2 comes from, but it is necessery to reproduce the numbers from the FractOS paper
+%% >>> all(512)/(2*1000) = 865.16
+%% >>> all(256)/(2*1000) = 435.08
+\begin{table}[H]
+  \centering
+  \resizebox{\textwidth}{!}{
+  \begin{tabular}{l|ccc|ccc}
+    \toprule
+    System & \multicolumn{3}{c|}{tcap} & \multicolumn{3}{c}{FractOS} \\
+    Batch Size & 256 & 512 & 1024 & 256 & 512 & 1024 \\
+    \midrule
+    Execution Time $[\mu s]$& 2536& 2979& 4004&1248& 1951&3292\\
+    Compute Time $[\mu s]$& 435.08& 865.16& 1725.32& 435.08& 865.16& 1725.32\\
+    Communication Time $[\mu s]$ & 2101& 2114& 2279& 812.62& 1086.20 & 1566.26\\
+    \bottomrule
+  \end{tabular}
+  }
+  \vspace{1em}
+\caption{\label{tab:face-results} Breakdown of the Faceverification Response Time.}
+\end{table}
+The results for FractOS baseline measurements are from the benchmark runs on the Eurosys 2022 publication~\cite{vilanovaSlashingDisaggregationTax2022}\@. We use the FractOS@CPU setup, as it achieves the best results in the publication. In addition, the setup is the closest to the \emph{tcap}-based setup, as the other setups use SmartNICs. Using a shared FractOS \ac{HAL} instance does not lead to a difference in average response time. For further comparison, Figure~\ref{fig:facever-scaling} includes the rCuda baseline from the FractOS publication, which is a worst-case baseline using the \ac{NFS} protocol for storage access.
+%% Grammarly checked
+\section{Code Size and Complexity}
+
+As this work proposes implementing a security-critical component that implements application isolation, keeping the software complexity as low as possible is vital to avoid security-relevant bugs. We use the cognitive complexity~\cite{campbellCognitiveComplexityOverview2018} by SonarCube as a metric for the complexity of the code, as it is the state-of-the-art metric for how hard code is for humans to comprehend. We report the results, including the code size, measured in lines of code, in Table~\ref{table:code-metrics}\@. We use Mozilla's rust-code-analysis tool\footnote{\url{https://mozilla.github.io/rust-code-analysis/index.html}, accessed 21/02/2024} to generate the complexity analysis and cloc~\cite{aldanialAlDanialCloc2024} for code size measurements.
+
+% ls -1 | xargs jq  '.spaces[] | .metrics.cognitive.sum' | awk '{s+=$1} END {print s}'
+\begin{table}[H]
+  \centering
+  \begin{tabular}{lccc}
+    \toprule
+    Component & LoC & Avg. Cognitive Complexity & \\
+    \midrule
+    Data plane &753&-& \\
+    Control plane &984& 1.56& \\
+    \emph{tcap} &1527&1.5& \\
+    Facever Simulation &456&0.90& \\
+    \midrule
+    FractOS core& 21996 & 1.83 & \\
+    \bottomrule
+  \end{tabular}
+  \vspace{1em}
+  \caption{\label{table:code-metrics} Number of lines of code and code complexity of the different components in the in-network capability system. As an example for an simple application and the its complexity, the Face-verification benchmark application is included. (lower is better)}
+\end{table}
+
+
+Table~\ref{table:code-metrics} includes the FractOS core componets as a comparison to the complexity of the \emph{tcap} library. Note, that FractOS implements many features that are missing in our work. Therefore, the comparison based on code-size is unfair, but the average code complexity of a function is higher than the complexity of the \emph{tcap} implementation. Further, the FractOS core components have multiple functions with complexities higher than $19$, which Sonarcube's code analysis considers too complex to comprehend~\cite{campbellCognitiveComplexityOverview2018}.\@
+
+Table~\ref{table:code-metrics} does not provide complexity metrics for the P4 data plane application because there exists no complexity measurement tooling for the P4 language, and due to the different programming models, traditional metrics might not be suitable to express the complexity of a P4 application.
+
+
+%% Grammarly checked
+\section{Summary of the evaluation results}
+
+The micro-benchmarks show low overheads for the in-network capability system compared to a traditional switch architecture. Nevertheless, the implementation introduces significant latency overheads and throughput degradations compared to the FractOS baseline. The lack of a kernel-bypass network stack and usage of \ac{RDMA} explain the performance degradation. Likely, these performance degradations can be resolved by further engineering, which is outside the scope of this thesis. As the Intel Tofino switch used for the evaluation is a high-performance data center switch, we could not show the scaling limitations of the switch itself since we could not generate a large enough load with this setup. Other projects using Tofino switches with a variety of workloads were able to show that the scaling behavior does not change until the 100Gib links are saturated~\cite{khashabSwitchVMMultiTenancyInNetwork2023a, jinNetCacheBalancingKeyValue2017, }.
+
+From the evaluation, we conclude that network-accelerated capability system acceleration is feasible and does not lead to unexpected performance degradation.

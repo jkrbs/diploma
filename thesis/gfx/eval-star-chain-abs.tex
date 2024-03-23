@@ -1,0 +1,42 @@
+\begin{tikzpicture}[
+        %Environment Cfg.
+    ]
+    \begin{axis}[
+        width=\linewidth,
+        height=8cm,
+        at={(0,0)},
+        grid=major,
+        minor tick num =5,
+        minor tick style={draw=none},
+        minor grid style={thin,color=black!10},
+        major grid style={thin,color=black!10},
+        ylabel={Exec Time [ms]},
+        xlabel=Number of Requests,
+        tick align=outside,
+        axis x line*=none,
+        axis y line*=none,
+%        xtick={0,...,7000},
+%        ytick={0,1000,...,7000},
+        legend style={at={(1,0.02)},anchor=south east},
+        ]
+    \addplot[name path=a, mark=square, color=col1,very thick] table [x index=0,y index=1,col sep=comma] {evaluation-data/star-chain-thesis.csv};
+    \addplot[name path=b, mark=o,color=col3,very thick] table [x index=0,y index=4,col sep=comma] {evaluation-data/star-chain-thesis.csv};
+
+    %%10 perc
+    \addplot[name path=alow,color=col1!0] table [x index=0,y index=2,col sep=comma] {evaluation-data/star-chain-thesis.csv};
+    \addplot[name path=blow,color=col3!0] table [x index=0,y index=5,col sep=comma] {evaluation-data/star-chain-thesis.csv};
+
+    %%90perc
+    \addplot[name path=ahigh,color=col1!0] table [x index=0,y index=3,col sep=comma] {evaluation-data/star-chain-thesis.csv};
+    \addplot[name path=bhigh,color=col3!0] table [x index=0,y index=6,col sep=comma] {evaluation-data/star-chain-thesis.csv};
+
+    \addplot [fill=col1!40 ] fill between[of=a and alow];
+    \addplot [fill=col1!40 ] fill between[of=a and ahigh];
+
+    \addplot [fill=col3!40 ] fill between[of=b and blow];
+    \addplot [fill=col3!40 ] fill between[of=b and bhigh];
+
+
+    \legend{Star, Chain};
+  \end{axis}
+\end{tikzpicture}

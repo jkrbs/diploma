@@ -1,0 +1,50 @@
+\begin{tikzpicture}[every text node part/.style={align=center}]
+  \node[minimum width=3.5cm, minimum height=2cm, matrix, matrix of nodes, column sep=5pt, row sep=4pt](m) {
+    \node(label){Dataplane};&&&&\node[draw](controlplane) {Controlplane};&\\
+    &&&&&\\
+    &&&&&\\
+    \node(data-plane-tl){};&&&\node(conftarget){};&&\node(data-plane-tr){};\\
+    &&&&\node[rectangle, draw] (mirror) {Mirror};&\\
+    &\node[diamond, draw](udp){UDP valid?};&&&&\node[draw] (genInvalid) {Generate\\CapInvalid\\Response};\\
+    &\node[diamond, draw](ipv4){Is IPv4?};&\node[draw, diamond](cmdtype){CMD Type};&&\node[rectangle, draw](captable){Apply CapTable};&\\
+    \node[diamond,draw] (ethertype) {EtherType}; &&\node[diamond,draw](arpvalid){ARP valid?};&&&\node[rectangle,draw](routing){Apply Routing Table};\\
+    \node(data-plane-bl){};&&&\node[rectangle,draw](arptable){ARP Table};&&\node(arp-reply) {construct ARP reply};\node(data-plane-br){};\\
+    &&&&&\\
+    &\node(drop0){drop};&\node(drop){drop};&&\node(drop2){drop};&\\
+  };
+
+  \node[draw, fit=(data-plane-br) (data-plane-bl) (data-plane-tl) (data-plane-tr)] (dataplane){};
+
+  \draw[->] (ethertype) --node[anchor=south] {ARP} (arpvalid);
+  \draw[->] (ethertype) --node[anchor=east] {IPv4} (ipv4);
+  \draw[->] (arpvalid) -- node[anchor=west] {no} ($(drop.center) + (0,.5)$);
+  \draw[->] (arpvalid) -| node [anchor=west] {yes} (arptable);
+  \draw[->] (udp.south east) -- ++(1,0) node[anchor=west] {no} -- ++(0,-7) -| ($(drop.center) + (0,.5)$);
+  \draw[->] (udp) -| node [anchor=west] {yes} (cmdtype);
+
+  \draw[->] (arptable.east) -- node [anchor=south]{hit} (arp-reply);
+  \draw[->] ($(arptable.east) - (0,.3)$) -| node[anchor=west] {miss} ($(drop2.center) + (0,.5)$);
+
+  \draw[->] (captable.north) -- node[anchor=east] {unknown} (mirror);
+  \draw[->] ($(captable.east) + (0,.3)$) -| node[anchor=west] {deny} (genInvalid);
+  \draw[->] ($(captable.east) - (0,.3)$) -| node[anchor=west] {allow} (routing);
+
+  \draw[->] (cmdtype) --++(3,3) |-node[anchor=east] {\texttt{CapInvalid} or\\\texttt{CapInsert}} (mirror.west);
+
+  \draw[->] (cmdtype) -- ++(6,-2.7) -- node[anchor=north] {other\\packet} (routing);
+
+  \draw[->] (cmdtype) -- node[anchor=south] {ressource access} (captable);
+  \draw[->, dotted] (ipv4) -- node[anchor=west] {no} ($(drop0.center) + (0,.5)$);
+  \draw[->, dotted] (ipv4) -- node[anchor=west] {yes} (udp);
+
+  \draw[->] (mirror) -- node {} (controlplane);
+
+  \draw[->] (controlplane) -| node[anchor=south] {Configure Tables} (conftarget);
+
+  \draw[->] (arp-reply) -- node[anchor=north] {egress} ($(arp-reply) + (3,0)$);
+  \draw[->] (routing) -- node[anchor=north] {egress} ($(routing) + (3,0)$);
+  \draw[->] (genInvalid) -- node[anchor=north] {egress} ($(genInvalid) + (3,0)$);
+
+  \draw[->] ($(ethertype) - (0,2)$) -- node[anchor=east] {Ingress} (ethertype);
+
+\end{tikzpicture}

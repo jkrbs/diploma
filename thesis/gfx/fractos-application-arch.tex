@@ -1,0 +1,22 @@
+  \begin{tikzpicture}[every text node part/.style={align=center}]
+    \node[draw] (input-nic) {Input\\NIC};
+    \node[draw, right=1cm of input-nic] (input-ssd) {Input\\SSD};
+    \node[draw, right=1cm of input-ssd] (ml-acc) {ML\\Accelerator};
+    \node[draw, right=1cm of ml-acc] (out-nic) {Output\\NIC};
+    \node[draw, right=1cm of out-nic] (cache) {Cache\\SSD};
+
+    \node[draw, below=1cm of ml-acc] (cpu) {CPU};
+
+    \draw[thick,->] (input-nic.south) |- ($(cpu.west)-(0,.1)$);
+    \draw[thick,->] (input-ssd.south) |- ($(cpu.west)+(0,.1)$);
+    \draw[thick,->] ($(cpu.north)-(.1,0)$) -- ($(ml-acc.south)-(.1,0)$);
+    \draw[thick,->] ($(ml-acc.south)+(.1,0)$) -- ($(cpu.north)+(.1,0)$);
+    \draw[thick,->] ($(cpu.east)+(0,.1)$) -| (out-nic.south);
+    \draw[thick,->] ($(cpu.east)-(0,.1)$) -| (cache.south);
+
+      \draw[thick,->,color=tudaccent1] (input-ssd.north) |- ($(ml-acc.north)+(-.2,.4)$) -| ($(ml-acc.north)-(0.2,0)$);
+      \draw[thick,->,color=tudaccent1] (input-nic.north) |- ($(ml-acc.north)+(-.1,.5)$) -| ($(ml-acc.north)-(0.1,0)$);
+
+      \draw[thick,->,color=tudaccent1] ($(ml-acc.north)+(0.2,0)$) |- ($(ml-acc.north)+(.2,.4)$) -| (out-nic.north);
+      \draw[thick,->,color=tudaccent1] ($(ml-acc.north)+(0.1,0)$) |- ($(ml-acc.north)+(.1,.5)$) -| (cache.north);
+  \end{tikzpicture}

@@ -1,0 +1,50 @@
+\tikzset{
+    table/.style={
+        matrix of nodes,
+        row sep=-\pgflinewidth,
+        column sep=-\pgflinewidth,
+        nodes={
+            rectangle,
+            draw=black!60,
+            align=center
+        },
+        minimum height=1.5em,
+        minimum width=5em,
+        text depth=0.5ex,
+        text height=2ex,
+        nodes in empty cells
+%%
+%        every even row/.style=
+%            nodes={fill=gray!20}
+%        },
+%        column 1/.style={
+%            nodes={text width=2em,font=\bfseries}
+%        },
+%        column 2/.style={
+%            nodes={text width=5em,font=\bfseries}
+%        },
+%        row 1/.style={
+%            nodes={
+%                fill=black!50,
+%                text=white,
+%                font=\bfseries
+%            }
+%        }
+    }
+  }
+\begin{tikzpicture}[every text node part/.style={align=center}]
+
+  \node[table] (table) {
+    & \node (subj1){Subject 1}; & \node (subj2){Subject 2}; & \node (subj3){$\cdots$}; & \node (subj4){Subject N}; \\
+    \node (obj1){Object 1}; & & & & \node (objn1) {append}; \\
+    \node (obj2){Object 2}; &\node(mobj2){x}; & & &\node (eobj2) {r, w}; \\
+    \node (obj3){\vdots}; & & & &\\
+    \node (obj4){Object N}; & &\node(nn){r};& &\node(ne) {x};\\
+  };
+
+  \node[right=1cm of eobj2] (acl-label) {ACL of Object 2};
+  \node[below=1cm of ne] (cap-label) {Cap List of\\ Subject N};
+
+  \node[fill=col2,fill opacity=0.5, fit = (cap-label) (objn1)] (colcap) {};
+  \node[fill=col4,fill opacity=0.5, fit = (acl-label) (mobj2)] (colacl) {};
+\end{tikzpicture}

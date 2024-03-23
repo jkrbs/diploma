@@ -1,0 +1,333 @@
+% !TEX root = ../thesis.tex
+%
+\chapter{Background}%
+\thispagestyle{scrheadings}
+\label{sec:background}\label{chap:background}
+
+% - Intro to
+%
+% -- !20Capabilities
+%
+% -- FractOS
+%
+% -- Programmable Networks
+This chapter introduces the technologies and concepts this work builds upon. Firstly, it discusses capability-based authentication systems and explains the challenges that arise from using capabilities for authentication in distributed systems. Secondly, the Chapter introduces disaggregation technologies. Further, we provide an overview of existing distributed execution environments, focussing on public clouds. As this work is heavily inspired by the FractOS meta-\ac{OS} design, we present the \ac{OS} in detail, emphasizing the application abstractions, programming model, and underlying capability system. Lastly, this Chapter provides a primer on software-defined networks, programmable network hardware, and the P4 programming language, as this is the primary tool used in this thesis to achieve the proposed offloading of capability-based resource management onto programmable network hardware.
+
+\section{Capability Systems}
+% - Capabilities as resource access brokers
+A capability system is a method for implementing access control in a system. As this work employs a capability-based access model, this section discusses capabilities in an abstract authentication mechanism. It focuses on implementation problems in distributed capability systems to provide the necessary background to follow the design decisions.
+
+An access matrix (Figure~\ref{fig:cap-system}) provides a general view of all permissions in a system. The matrix depicts all permissions in a system. Reading the matrix row-wise gives the \ac{ACL} for an object. An \ac{ACL} is a list of subjects and the per-subject permissions for a given object. Reading the list column-wise yields a list of all objects and the respective permissions a subject holds. The column-wise reading yields a list of all the capabilities the subject holds.
+
+\begin{figure}[H]
+  \centering
+  \input{gfx/cap-matrix.tex}
+  \caption{\label{fig:cap-system} An access matrix is a common method of visualization for authentication systems; it can be read row-wise, as \ac{ACL} for an object, or column-wise as capability lists.}
+\end{figure}
+
+A capability does not only represent an abstract permission but applicaitons code can also use a capability as pointer to a resource, which an application must own to access a resource.
+The resource owner is the component in a system that created the resource. Using capabilities as resource locators, a subject can only find objects and try to access them, if allowed to, as it would otherwise be unable to name to resource. The resource owner, the component in a system that holds the resource the capability points to, or an external mechanism, such as an access broker, enforces the access control by checking the validity of the capability. An arbitrary number of subjects may own capabilities to access a resource and can hand it over to another subject through a delegation, thus extending the set of subjects' access to the resource.
+
+The competing and more popular authentication scheme is the usage of \acp{ACL}. With \acp{ACL}, the resource objects have lists of all subjects and their permissions on the object.
+There is no difference in expressiveness between a capability list and \acp{ACL}. There are two perspectives on the access control matrix as depicted in Figure~\ref{fig:cap-system}. Choosing capability-based authentication or \ac{ACL} depends on the application scenario and how often rights are retracted from a subject, as this is a single operation in the object's \ac{ACL} and would require a search. An enforcement layer must check a capability object. This layer is similar to the \ac{ACL} enforcement needed in systems using that.
+The ownership and delegation features of capability systems yield a more complex revocation problem than access control lists. If subject $A$ delegates a capability to subject $B$, the resource owner cannot revoke the access, so only $B$'s capability is valid. This problem can be side-stepped but is a significant criticism of capability-based authentication~\cite{millerCapabilityMythsDemolished}.
+
+However, capability systems have major benefits compared to \ac{ACL}-based systems. The delegation of a capability is only an operation between the two nodes, whereas the \ac{ACL} of that object must be changed when using \acp{ACL}. Another advantage of capabilities is the ease with which systems can implement the \ac{PoLA}. \ac{PoLA} is the concept, that applications should only have access to resources they were explicitly granted the permissions to. This concept is hard to implement with \acp{ACL} a system cannot use default permissions and every create of an application requires changes to many \acp{ACL} for all objects.
+
+Many limitations attributed to capability systems only hold for implementations as capability lists. Recursive revocation is a classic example of this. \emph{Recursive revocation} is the problem that occurs when $A$ delegates a capability to $B$, which then delegates it to $C$, and now $A$ revokes the capability for $B$. The delegation from $B$ to $C$ must also be revoked. This problem becomes more complex when there are multiple delegation paths of a capability to a node, and the owner only revokes one of the paths. Figure~\ref{fig:recursive-revocation} depicts this situation. The correct implementation for revocation requires counting the possible paths in the delegation graph.
+
+\begin{figure}[H]
+  \centering
+%  \resizebox{\textwidth}{!}{
+  \begin{tikzpicture}
+
+  \node[matrix, matrix of nodes, column sep=0.75cm, row sep=.5cm](m) {
+    &  \node[draw, circle] (b) {B}; &   \\
+    \node[draw, circle] (a) {A}; & & \node[draw, circle] (d) {D};\\
+    &  \node[draw, circle] (c) {C}; &   \\
+  };
+  \node[matrix, matrix of nodes, column sep=0.75cm, row sep=.5cm, right=1cm of m](mm) {
+    &  \node[draw, circle] (mb) {B}; &   \\
+    \node[draw, circle] (ma) {A}; & & \node[draw, circle] (md) {D};\\
+    &  \node[draw, circle] (mc) {C}; &   \\
+  };
+  \node[matrix, matrix of nodes, column sep=0.75cm, row sep=.5cm, right=1cm of mm](mmm) {
+    &  \node[draw, circle] (mmb) {B}; &   \\
+    \node[draw, circle] (mma) {A}; & & \node[draw, circle] (mmd) {D};\\
+    &  \node[draw, circle] (mmc) {C}; &   \\
+  };
+
+  \draw[->, thick] (mma) -- (mmc);
+  \draw[->, thick] (mmc) -- (mmd);
+  \draw[->, thick] (ma) -- (mc);
+  \draw[->, thick] (mb) -- (md);
+  \draw[->, thick] (mc) -- (md);
+  \draw[->, thick] (a) -- (b);
+  \draw[->, thick] (a) -- (c);
+  \draw[->, thick] (b) -- (d);
+  \draw[->, thick] (c) -- (d);
+\end{tikzpicture}
+%}
+  \caption{\label{fig:recursive-revocation} Recursive revocation of a capability. An arrow $M \to N$ symbolizes a non-revoked delegation from subject $M$ to subject $N$. The three steps from left to right show the cascade of revocation after $A$ revokes the delegation to $B$}
+\end{figure}
+
+An additional problem is the requirement for a subject to track all delegations it performs to know which delegation must be revoked. Because of these problems, real-world capability system implementations do not use simple capability lists but instead central capability tables or trees. Capability tables map a capability ID and delegatee to an object or pointer to an object. Capability trees store all delegations of a capability as children in a tree structure. The usage of a tree enables faster revocation because only the subtree of the revoked capability must be traversed.
+
+Many other implementation-specific problems exist but will not be discussed in this Chapter, as the discussions on this work's design in Chapter~\ref{chapter:design} focus on the problems relevant to this thesis.
+
+\subsection{Distributed Capability Systems}
+Until now, we assumed that the consistency of the capability table is always guaranteed. This requirement is not trivial in a distributed system of many nodes connected to a network and introduces new challenges. This section discusses some of the challenges and presents previous research tackling those challenges.
+
+An obvious problem in a distributed system is packet loss. For example, the loss of a revocation network packet leads to a host accessing a resource that is not allowed to be accessed anymore. If the resource owner revokes a capability, this change must be immediately applied to all hosts. The perspectives of all nodes on the capability system must fulfill strong consistency requirements to prevent reading outdated values. This strong consistency is achievable in shared-memory systems but challenging in a distributed system, as strong consistency across networks inccurs big communication overheads~\cite{abdullahiGarbageCollectingInternet1998}.\@
+
+% Intro to distributed capability systems
+A possible solution for the consistency problems in a distributed capability system is that every node is responsible for the authentication of the capabilities of objects residing on that node. That node is the \emph{owner} of the object. Each node tracks every capability operation for local objects. Each other node must notify the owner about any capability operations it performs. This notification mechanism introduces significant network overheads, as every delegation and revocation must be communicated to the owner using a fault-tolerant protocol. Existing distributed capability system implementation avoids these overheads by loosening the consistency requirements in their capability-based protocols~\cite{UsingSparseCapabilities1986, vilanovaSlashingDisaggregationTax2022, hilleSemperOSDistributedCapability2019}.\@
+
+%Why do we need garbage collection
+Over the lifespan of a node, many capabilities get delegated to it, and they might not be explicitly revoked, but an application no longer references them. This may happen if a node is an intermediate node in a chain of delegations. In a delegation $A \to B \to C$, node $B$ might only hold the capability because it is part of this chain and not because it will access the object at some point. If node $C$ is no longer available, the capability at $B$ has no reference in the system and can now be deleted. Because of this problem, distributed capability systems require garbage collection. The system must eventually delete dangling references to prevent resource leakage. A similar necessity for garbage collection exists when an object is only referenced by remote capabilities, and the last capability referencing is dropped. In the latter case, the object owner needs to be made aware that there are no valid remote references to the object, and the node may now delete the object.
+
+Garbage collection algorithms mostly focus on shared memory and time-synchronous systems. In such systems, it is possible to pause all executions and perform garbage collection without the risk of concurrent state modifications from the application. Pausing the system is not feasable in distributed systems since the time for collecting the system's state via a network is too long.
+Previous research in the context of garbage collection found possible solutions for similar problems in the realm of distributed database systems~\cite {plainfosseSurveyDistributedGarbage1995, shapiroGarbageDetectionProtocol}\@. It modifies classical reference-counting or mark-and-sweep-based algorithms for usage in distributed scenarios. The research evaluates distributed reference counting and graph-based garbage collection algorithms and proposes variants of the system for non-shared memory systems. The results from this research apply also to distributed capability systems, as the state of the capability system is a distributed database, which must be consistent. This research proposes several protocols suitable for distributed database systems but not fault-tolerant concerning lost packets. Fault-tolerant extensions have a significant communication overhead, which is not desirable for a distributed capability system with many delegations, where the minimization of communication is a crucial optimization criterion. The other proposed solutions require either central tracking by the object owner or the aforementioned strong assumptions about the failure safety of the system, as the protocols do not offer any fault tolerance~\cite{shapiroSSPChainsRobust1992}\@.
+
+\subsection{Sparse Capabilities}
+Distributed capability systems have a portability problem. It must be impossible for a node to generate a valid capability for a resource on another node. A node must only have the capability if it is received via a delegation. The simple solution for this problem is central enforcement, which must permit access to every resource. This solution does not scale well, as a single centralized component is introduced. Miller~\etal{}~\cite{UsingSparseCapabilities1986} introduced the concept of sparse capabilities to loosen the requirement for central enforcement. Sparse capabilities allow a simple revocation mechanism for the object owner without delegation tracking.
+
+Each resource access must pass in a system with a central capability database and enforcement layer. Time-of-check vs. time-of-use vulnerabilities are easier to avoid because consistency in distributed systems without the possibility of reading outdated information is non-trivial. Further, the system must prevent an unauthorized application from generating a capability for an arbitrary object. In centralized systems, unauthorized resource access with a generated capability is prohibited by the access broker, as the capability is not part of the capability list of the subject.
+
+The proposed solution for this issue is the usage of so-called sparse capabilities. Sparse capabilities contain a large random value to make the generation of valid capabilities impossible. The security of such a system depends on the random number generator and the size of the random value. If a malicious actor can generate a valid capability by guessing the value, it must be impossible for an untrusted component to listen to the network traffic and, therefore, know the secret value.
+
+A system with sparse capabilities does not require a central component to block invalid resource accesses because the capabilities are not forgeable due to the large space of possible values.
+This insight allows distributed capability systems to loosen consistency requirements on the capability tables. A node can only access a remote resource if it knows the capability ID and a resource owner can revoke capabilities immediatly be removing acceess through that ID.\@ Therefore, distributed capability systems using sparse capabilities do not require consistent distributed state.
+
+% \subsection{Organisation of Capabilities}
+%
+% The organization of the capability objects within the enforcement layer is vital, as the verification must have as little overhead as possible. Thus, the selection of data structures and their locking methods must be carefully chosen to allow parallel access and not allow inconsistencies or lost updates without high congestion on the locking infrastructure. Therefore, we evaluate different capability systems to make an informed decision in Chapter\ref{Chapter:design} about the design of this work data structures.
+%
+% The L4.RE microkernel-based operating system framework uses object capabilities as resource locators and permission models. It follows the principle of least authority as every task (equivalent to a Linux Process) starts with no permissions and must be explicitly granted the capability to communicate, for example, with a file system driver.
+%
+% -- explain the object-capability part
+%
+%
+% - Capability Tables
+%
+% -- Hash Tables
+%
+% - fine-grained locking optimizations in FractOS
+
+
+\section{Disaggregated Systems}
+
+Today's data centers consist of many servers with varying configurations, which the cloud vendors split into \acp{VM} that they rent to customers. The server configurations are static, which limits the resource combinations that the vendor can rent to customers—the configuration availability changes with the current customer demands, resulting in complex resource allocation problems. A possible solution for this problem is the disaggregation of data centers. The idea is to separate different hardware resources into different systems, which the cloud platform connects dynamically based on the customer's demand via a network. Based on customer demands, the cloud platform dynamically allocates and connects hardware resources, like \acp{CPU}, memory, storage, and accelerators.
+
+It promises a more efficient hardware utilization in cloud data centers, as rental units are not limited to pre-composed platforms~\cite {intelIntelRackScale2014}. Disaggregation requires low-latency and high-throughput networks and vast architectural changes to server platforms. Novel interconnect technologies, like \ac{CXL}~\cite{vandorenAbstractHOTI20192019}, allow access to remote resources with much higher bandwidth than current Ethernet and even \ac{RDMA} based networks, which dominate cloud data centers.
+% - performance trade-off in terms of latency and throughput compared to \ac{PCIe} and memory bus
+
+% - rCuda
+The communication with accelerators typically works via \ac{PCIe}. \ac{RDMA} allows network-based access to the accelerator's memory, but the direct communication between the \ac{NIC} and accelerators is rarely supported. This reality limits the vision of a fully disaggregated system. Modern data-center \acp{NIC} and accelerators support direct data flow without a detour via the hosts \ac{CPU}. However, the \ac{CPU} must still perform the configuration and initialization of the memory transfers. The necessity of a \ac{CPU} controlling the accelerator is a limitation for the disaggregation of data centers. A popular example is rCuda\cite{duatoRCUDAReducingNumber2010}, which is the first implementation of remote access to Nvidia \acp{GPU} via the Cuda \ac{API}. It proxies the CUDA calls via an Infiniband network, which allows low latency \ac{DMA} into the \ac{CPU} memory from the GPU-less client to the remote server with GPUs. Direct \ac{NIC} to \ac{GPU} transfers, cutting out the \ac{CPU} from data transfers, are possible with GPUnet~\cite{silbersteinGPUnetNetworkingAbstractions2016}, but the \ac{CPU} is still required for control operations of the \ac{GPU}. \ac{CXL}-based networks allow a direct \ac{DMA} link between \acp{CPU} and remote \acp{GPU} through a switchable network~\cite{arifAcceleratingPerformanceGPUbased2023}.
+
+Due to the interconnect and hardware architecture constraints, the usage of disaggregated systems is not as seamless as with current static hosts. Thus, existing applications are to be adopted. The current accelerator programming models are not ideal for disaggregated systems, as they have higher latencies and more communication overheads~\cite{hanNetworkSupportResource2013}.\@ Thus, many solutions for disaggregation take inspiration from their programming models from distributed execution environments~\cite{moritzRayDistributedFramework}\@.
+
+\section{Distributed Execution Environments}
+This section outlines the programming models used for modern cloud applications, as this work's goal is to offload authentication in modern data centers.
+
+As soon as applications require more computing than a single host can provide, the distributed execution across multiple hosts becomes necessary. The distributed execution requires modifications to the application. The application state is scattered across multiple non-shared memory systems. The latency for \acp{RPC} is orders of magnitude higher than in a process on the same host. Thus, the programming model and application design also change dramatically. In \ac{HPC}, where distributed computing has been necessary for a long time, programming models like MPI or OpenMP are popular for distributed computation. Separating monolithic applications into small, composable services, such as microservices, is the leading approach for cloud services. With microservice architectures, individual application components are scalable to fulfill the current user demand.
+
+\textbf{\ac{FaaS}.}
+\ac{FaaS} is a programming paradigm for microservices, where each service does as little as possible to achieve maximal composability. An application is a composition of individual functions executed by the cloud service provider on a distributed runtime. The big cloud vendors provide \ac{FaaS} runtimes and graphical programming environments.
+Cloud tenants do not have to maintain virtual machines; the cloud vendor provides all infrastructure. Object storage events, web requests, or other events can trigger a function. As an example, \ac{AWS} Lambda supports functions in Node.js, Python, Java, Go, and other languages.\footnote{\url{https://docs.aws.amazon.com/lambda/latest/dg/gettingstarted-package.html}} Cloud tenants usually pay per function invocation and its compute time.
+
+Developers can integrate predefined functions or processing pipelines the cloud vendor provides into their applications. A developer can easily integrate, for example, state-of-the-art image recognition into the application while being indifferent about the exact \ac{ML} model used and what hardware executes the inference. This abstract composability makes \ac{FaaS} applications portable and scalable. It allows the cloud vendor to disaggregate its hardware on lower levels, as it does not interfere with the user's applications.
+
+\section{FractOS Meta-Operating System}
+This section presents the FractOS meta operating system~\cite{vilanovaSlashingDisaggregationTax2022, vilanovaCaladanDistributedMetaOS}; it covers the motivation behind the design of the system, its capability system, and programming model. FractOS heavily inspire this work's design and uses the system as a reference in the evaluation (Chapter~\ref{chapter:evaluation}).
+
+%%% motivation
+FractOS provides a distributed runtime for disaggregated applications. This distributed runtime enables applications on multiple physical hosts to interact without knowing where the other components are running. It leverages \ac{RDMA} to allow direct accelerator-to-accelerator memory transfer. In contrast, the \ac{CPU} application only configures the accelerators and exposes the \ac{RDMA} memory regions to other components in the distributed application. Figure~\ref{fig:fratos-high-level} depicts an example pipeline showing the control- and data communication. In a classical distributed application architecture, all data transfers go through the \ac{CPU}.
+
+\begin{figure}[ht]
+  \centering
+  \input{gfx/fractos-application-arch.tex}
+  \caption{\label{fig:fratos-high-level} FractOS High-level Architecture. The blue arrows symbolize the data flow between the high-level components. The black arrows show the required data-flow in a disaggregated architecture that does not support direct device-to-device memory transfers.}
+\end{figure}
+
+FractOS user applications run as ordinary Linux user processes. The applications only use FractOS \acp{API} for resource operations that interact with another node in the distributed execution.
+
+\textbf{Ressource Abstractions.}
+FractOS handles all resource management and must provide abstractions to user applications to provide an interface for distributed applications. These abstractions are Endpoints, Requests, and Memory objects. Endpoints represent a node that can receive capabilities and hold objects. Each application initially creates an endpoint to communicate with the hardware abstraction layer. Memory objects refer to a buffer in an unix process address space. The FractOS userspace library exposes a \ac{RDMA} memory region to allow remote access to a memory object. Request objects are the \ac{RPC} abstraction in FractOS\@. A request object is bound to a C++ lambda, which FractOS calls if an application invokes the capability to reference the object. Request capabilities can be parameters during request invocations.
+
+\textbf{Programming Model.}
+FractOS applications are pipelines of requests connected via continuation requests. A request can have immediate arguments and capabilities as arguments. The request handler may access the memory objects through its capability arguments and invoke request capabilities from its arguments. Instead of returning to the caller, a FractOS request can continue the execution by invoking a request capability. This design allows the chaining of request and \ac{CPS}. Figure~\ref{fig:fractos-programming} depicts a sample of this chaining behavior. The request objects with the request handlers may reside on different nodes and thus enable the distributed execution.
+
+\begin{figure}[H]
+  \centering
+  \begin{subfigure}[T]{.45\textwidth}
+  \centering
+\begin{sequencediagram}
+    \tikzstyle{inststyle}=[rectangle,anchor=west,minimum
+    height=0.8cm, minimum width=1.6cm, fill=white]
+
+    \newinst{f1}{Func 1}
+    \newinst{f2}{Func 2}
+    \newinst{f3}{Func 3}
+
+    \begin{call}{f1}{call}{f2}{return}
+    \begin{call}{f2}{call}{f3}{return}
+    \end{call}
+    \end{call}
+  \end{sequencediagram}
+     \centering\caption{\label{fig:return-style} return-based}
+  \end{subfigure}
+  \begin{subfigure}[T]{.45\textwidth}
+  \centering
+\begin{sequencediagram}
+    \tikzstyle{inststyle}=[rectangle,anchor=west,minimum
+    height=0.8cm, minimum width=1.6cm, fill=white]
+
+    \newinst{f1}{Func 1}
+    \newinst{f2}{Func 2}
+    \newinst{f3}{Func 3}
+
+    \mess{f1}{call}{f2};
+    \mess{f2}{call}{f3};
+    \mess{f3}{return}{f1};
+  \end{sequencediagram}
+  \centering\caption{\label{fig:cps} \ac{CPS}}
+  \end{subfigure}
+  \caption{\label{fig:fractos-programming} A comparison between FractOS' \ac{CPS} model1 (Figure~\ref{fig:cps}) and return-based programming (Figure~\ref{fig:return-style}).}
+\end{figure}
+
+The C++ lambdas, which FractOS uses as request handlers, return a request it invokes next. This leads to complex code, like in Listing~\ref{listing:fractos-service-example}, which implements a service that logs two immediate arguments to the command line and, invokes a continuation and blocks till the continuation is finished with the execution.
+FractOS requires much code for a simple service replying via a provided continuation capability. This complexity results from the design choice to use asynchronous C++ code and leverage the C++ type system at least per process.
+% - global name service for public services
+
+\begin{listing}
+  \inputminted{cpp}{code/fractos-service.cpp}
+  \caption{\label{listing:fractos-service-example} A code example for a request handler in FractOS. The }
+\end{listing}
+
+\textbf{Capabilitiy System.}
+The authentication system is based on FractOS' capability system.
+The capabilities are passed between nodes and applications to share access to the underlying objects. User applications only interact with capabilities as indirection through the meta-os interface as visualized in Figure~\ref{fig:cap-orga}\@. The FractOS controller, formally known as meta-kernel, has a table of all objects. A capability references the object and serves as an interface to access the object. An object can be referenced by multiple capabilities. A capability object has a tree data structure that contains all nodes to which the capability has been delegated. When a user application revokes a capability, all nodes in the tree are notified of this revocation with a revocation request. If a node receives a revocation request, it will mark local references as invalid and revoke the capability for all nodes it delegated the capability to. By this recursive revocation mechanism, the invalidation propagates to all nodes that hold a reference. The inconsistent state between the nodes during the revocation process is not problematic, as access to the object will result in a cap-invalid notice from the owner, as the owner has triggered the revocation process.
+
+\begin{figure}[H]
+  \centering
+  \input{gfx/fractos-cap-orga.tex}
+  \caption{\label{fig:cap-orga} FractOS capabilities are only handled by the meta-kernel component. A userspace application only interacts with capabilities referencing kernel objects. This figure shows the organization of capabilities within the meta-os runtime and the connection to the underlying kernel objects.}
+\end{figure}
+
+The FractOS paper~\cite{vilanovaSlashingDisaggregationTax2022} differs from the implementation in some parts. All elaboration in this work relates to the implementation rather than the paper in the cases where it differs.\footnote{All references in this work discuss FractOS in the state of the git commit \texttt{b29485ada86c4bea33553edcf9f6762940f4b3dd} from 26/05/2023}. There is no difference between the implementation and publication in the capability system design.
+
+\textbf{Global Name Service.}
+A FractOS application starts without any capabilities. It can expose a service globally by publishing a name and allowing users to request all other applications to find and use. The global name service provides this directory. Another application can find these capabilities by name and bootstrap its services with them. An application must have a capability to the global name service in its initial capability table. A global name service is necessary because FractOS does not use sparse capabilities, and an application can only invoke a capability if the capability table within the \ac{HAL} contains this delegation. The FractOS \ac{HAL} supports the initial delegation of a global-name-server capability, as the application cannot insert the capability into its capability table.
+
+\textbf{Similar Projects.}
+Apache Beam is a comparable distributed execution engine. It is popular for data processing tasks and supports multiple backends, such as Apache Spark or Google Data-flow runnner, as targets. Another research project in this area is Ray by Moritz\etal{}~\cite{moritzRayDistributedFramework}. It targets training and inference \ac{ML} workloads. The focus is not on providing a general-purpose distributed runtime but on its usability.
+
+\section{Programmable Networks}
+This thesis uses programmable network hardware to offload parts of a distributed capability system. This section introduces the fundamentals of \ac{SDN} and programmable network as foundations for the design and implementation of this work.
+
+Software-defined Networking became popular in the early 2010s when data centers required more flexibility regarding dynamic reconfigurability and \ac{QoS} assurances to cloud tenants. The OpenVSwitch project provides such a software-defined networking environment for cloud platforms. Moving the routing and switching decisions into general-purpose server hardware comes with substantial performance penalties but provides excellent flexibility in configurability and integration of network services. For example, firewalls do not have to be centralized components through which every packet must route. In \ac{SDN} deployments, the firewall application defines a set of packet processing rules, which are deployed to all network switches and enforced at the smallest possible level.
+
+Another significant advantage in \ac{SDN} is its configuration flexibility. Classically, data centers implement node isolation with static \acp{VLAN} and \acp{ACL} on every switch between the servers. With \ac{SDN}, the data center can dynamically provide a virtualized and isolated connection across the data center without configuring individual network devices. This feature is especially interesting for fast-changing networks like cloud environments, where cloud vendors can now provide isolated networks between the customer \acp{VM} spanning multiple data centers. All these advantages come at the high cost of performing all operations on general-purpose \acp{CPU} with a high cost in terms of throughput and latency. A significant development in programmable networks is the proliferation of \acp{NIC} with hardware offloading support for OpenVSwitch by the large data center \ac{NIC} vendors~\cite{neutrondevelopmentteamOpenVSwitchHardware, intelIntelInfrastructureProcessing}\@. In another direction, networking hardware vendors started developing more flexible hardware switches, allowing programmable packet processing similar to OpenVSwitch in traditional \ac{ASIC} based network switches. The hardware implementation using \acp{ASIC} has significant performance improvements in throughput and latency compared to software implementations. The downside is the limited and more complex programmability. \ac{ASIC} based programmable switches maintain comparable switching capacities to non-programmable competing products.
+
+Besides the limited programmability, the switches do not provide consistent guarantees or guarantees on the processing order of arriving packets. A switch may not process the packets in the order of arrival but must always have enough free memory to buffer arriving packets. Thus, the processing pipeline must meet a strict execution time limit. Further, the variance in processing time must be minimal, such that no packets need to be dropped depending on the processing of previous packets. Network hardware vendors have developed switches with a programmed packet processing pipeline, fulfilling the abovementioned requirements and restrictions. The hardware constraints limit the programmability compared to \ac{CPU} based processing in OpenVSwitch. Such switches are programmed in the P4 Programming language, which we further discuss in Section~\ref{sec:p4}. Section~\ref{sec:p4-limitations} presents the limitations arising from the design in more detail.
+% - Hardware
+% TODO broad hardware overview
+
+A central feature of programmable switches is the possibility to make packet modifications based on the switch's memory. Modifying the memory based on packet contents is not trivial.
+Network Switches commonly use \ac{CAM} as storage for the \ac{MAC}-address tables. \ac{MAC}-address tables are used to store the mapping from client \ac{MAC}-address to switch port. \ac{CAM} is a hardware implementation of an associative array. \ac{TCAM} extends the concept from binary to ternary states, which can implement highly efficient \ac{LPM} algorithms. These algorithms are commonly used in network routers as routing tables, indexed by the destination address, returning the next-hop depending on the destination address's \ac{LPM}~\cite{pagiamtzisContentAddressableMemoryCAM2006}. Writing \ac{TCAM} memory from the switche's data plane is impossible.
+
+Reconfigurable Matching Tables are an abstract view of memory in switches. In traditional network switches, a matching table's key can only work on a bit range of the input packet. With \acp{RMT}, the key and action taken on the match are part of the software that defines the switch's behavior. \acp{RMT} use either \ac{TCAM} or \ac{SRAM}, depending on the match-type. With \acp{RMT}, the software can define the network protocols a switch supports. Thus, a switch can either be a classical layer two switch, a network router, a \ac{VPN} gateway, or a firewall. Figure~\ref{fig:rmt} depicts the architecture of a \ac{RMT} within a network switch.
+\begin{figure}[ht]
+  \centering
+  \input{gfx/tofino-processing.tex}
+  \caption{\label{fig:rmt} Packet processing flow depends on action selection based on \ac{RMT} contents. In this example, the table performs a routing decision based on a \ac{LPM} on the IPv4 address of the packet origin. The packet destination, i.e., the next hop, is set accordingly. The switch drops the packet if it originates from the 10.0.2.0/24 subnet.}
+\end{figure}
+
+\subsubsection{\ac{PSA}}
+The \ac{PSA} is a standard by the P4 consortium covering a programming model and common abstractions for programmable network hardware. The P4 consortium of network vendors, like APS Networks, Cisco, Intel, and Nvidia, and members from academia specify the \ac{PSA} and related standards. The predecessor of the \ac{PSA} is the \ac{PISA}. The \ac{PISA} is widely used also for the new standard versions. The architecture~\cite{thep4.orgarchitectureworkinggroupP416PortableSwitch2022} is very close to the first version of the Intel Tofino architecture because Tofino switches were the most successful P4 programmable switch.
+
+A \ac{PSA} compatible switch comprises multiple independent pipelines. A pipeline consists of multiple \acp{MAU}, which the compiler uses for ingress and egress blocks.
+Each \ac{MAU} comprises a \ac{VLIW} processor and a simple \ac{ALU}. As memory to work with, each \ac{MAU} has \ac{SRAM} as well as \ac{TCAM}. The \ac{MAU} performs the \ac{RMT} matches. The compiler schedules the blocks of a P4 program across the \ac{MAU} stages. The blocks can stretch across multiple blocks. In this case, the compiler schedules segments of a \ac{RMT} to different stages. The number of \ac{MAU} stages limits the size of applications. In a stage, the \acp{MAU} executes in parallel, modifying the \ac{PHV}, which shifts through the pipeline. The \ac{PHV} comprises the beginning of the network packet, which has been parsed by the ingress parser and can be modified by the \ac{MAU} stages.
+
+The data plane cannot modify \ac{RMT} contents. A control plane, usually running on a general purpose \ac{CPU} within the switch, performs inserts or modifications to the \ac{RMT}. Depending on the packet headers, the data plane can mirror a packet to the control plane. The control plane processor runs an application listening for the mirrored packets, parses them, and modifies the \acp{RMT} accordingly.
+
+\begin{figure}[hb]
+  \centering
+  \resizebox{\textwidth}{!}{
+    \input{gfx/tofino-pipeline-mau.tex}
+  }
+  \caption{\label{fig:tofino-pipeline} A \tofino{} Pipe, consisting of multiple \acp{MAU} and ingress, as well as egress deparsers.}
+\end{figure}
+
+\subsection{Limitations of the \ac{PSA}}\label{sec:p4-limitations}
+The low-latency requirements limit the programmability of programmable switches. The \ac{PSA} standardizes the functionality, which is possible despite the limitations, and the P4 programming language represents them as well. Gebara~\etal{} summarizes the architectural limitations as follows~\cite{gebaraChallengingStatelessQuo2020}\@.
+
+\textbf{No cross-stage shared memory.} The compiler distributes the stages across the pipe sections, like the Ingress or Egress block, depending on the block's size. Sharing memory variables or having dependent memory access across multiple stages is impossible. This non-sharing of memory limits the complexity a P4 application can express and their size.
+
+\textbf{Memory access ordering.} Dependent memory accesses two variables $A, B$, which must always happen in the same order. The compiler rejects code with $A \prec B$ in one stage and $B \prec A$ in another stage. $\prec$ denotes the order of memory accesses.
+
+\textbf{Feedforward only.} A P4 program is sequential because repeating it with an updated payload back to a previous processing step is impossible. Further, depending on the packet type, having a different order of \ac{RMT} applications is impossible. The order of \ac{RMT} applications must be global.
+
+\textbf{Limited Complexity Operations.} The \ac{PSA} does not specify the existence of a \ac{FPU}, but it also limits arithmetic operations, like multiplications, due to the tight cycle budget per packet.
+
+Due to these limitations, Gebara~\etal{} proposes a modification of the \ac{PSA} by adding a parallel stateful pipeline, through which the packets pass after the ingress-parser. The accepting state reached in the ingress parser decides if the switch uses the stateful or traditional \ac{PSA} pipeline. The parallel stateful pipeline has longer and more crucial non-constant processing times per packet. The stateful processing \ac{WCET} must be known and below a hardware-specific slack budget for the integration. The work only describes a desired extension but does not provide a hardware or simulator implementation.
+
+\subsection{P4 Programming Language}\label{sec:p4}
+
+The P4 Programming Language is a domain-specific language for programmable network switches. A P4 program defines a packet processing pipeline and is compiled for the desired switch architecture.
+
+% -- Design Goals
+The goal of the P4 language is to provide an accessible environment for defining packet processing pipelines and take the burden of programming the \acp{ASIC} and \acp{FPGA} away from the developer. This section explains core language features to provide the reader with the background knowledge this thesis uses.
+
+A P4 program defines the behavior of a network switch. The program is split into two major components, the ingress and egress components. The ingress stages contain all behavior depeding on the packet origin, whereas the egress stages depend on the packet's destination. Both parts consist of a Parser, control-block and Deparser. The rest of this section explains each of these blocks in detail.
+
+\textbf{Parsers} blocks define the parsing of arriving network packets into header structs. The compiler constructs a \ac{DFA}  to achieve this with a parser state selection based on already parsed header fields. A sample \ac{DFA} for the code in Listing~\ref{listing:intro-parser} is depicted in Figure~\ref{fig:intro-parser}.
+
+\begin{listing}[H]
+  \begin{multicols}{2}
+    \inputminted{cpp}{code/intro-parser.p4}
+  \end{multicols}
+  \caption{\label{listing:intro-parser} P4 Source Code of a Parser corresponding to the graph depicted in Figure~\ref{fig:intro-parser}. The defined automaton of parser states fills the \pfourcode{sturct hdr} according to the parser rules.}
+\end{listing}
+
+\begin{figure}[H]
+  \centering
+  \input{gfx/dfa-network-headers.tex}
+  \caption{\label{fig:intro-parser} A \ac{DFA} of the parser states corresponding to the Source Code in Listing~\ref{listing:intro-parser}.}
+\end{figure}
+
+\textbf{Deparsers.}
+There are ingress and egress departures. Applications commonly use the departures to calculate and update the protocol checksums. Deparsers decide which headers the switch emits. For example, it emits a mirroring-specific header for packets to the control plane or a special recirculation header for packets that the switch recirculates to an ingress port.
+
+\textbf{Ingress and Egress Blocks.}
+The ingress block parses the network packets into data structures defined in the program and handles the packet modifications based on the packet's source data. The egress stage analogously handles the destination depending on modifications.
+
+Due to hardware limitations, dependent table lookups are impossible in a single stage. A developer can subvert this limitation by moving the dependent lookup into the egress stage, as the compiler does not enforce the egress stage's intended purpose of only performing egress-dependent modifications. The egress block commonly sets mirroring-specific headers and is responsible for all destination-dependent packet modifications.
+
+The ingress block usually contains the central components of the data plane applications and requires most of the switch's resources.
+
+
+\subsection{Intel Tofino}
+2016 Barefoot Networks released the Tofino product line of programmable network switches. Intel acquired the company Barefoot Networks in 2019. Intel announced the production stop and discontinuation of the Tofino product line in January 2023~\cite{maxa.cherneyIntelHaltsTofino}\@. Tofino switches have multiple independent pipelines, which handle packets from different sets of ports. The pipelines can be considered independent switches within the same physical unit. Each pipeline comprises multiple independently programmable pipes. Tofino 1 has two pipes per pipeline, whereas Tofino 2 has four. Confusingly, the pipes are Pipeline objects in P4. A pipe is equivalent to a P4 switch object in the pisa-bvm2 model, as depicted in Figure~\ref{fig:tofino-pipeline}.
+
+The underlying \ac{TNA} extends the \ac{PISA} by providing stateful memory, which can be modified within the switch without the detour via the control plane. The \ac{TNA} further contains a stateful \ac{ALU} to perform computations based on memory values. The memory is accessible via several extensions, so-called externs, to the P4 language.
+
+\textbf{Register Externs} provide stateful memory that can be read and written within one processing stage. The register size is a compile-time constant. Registers provide an indexed data structure to arbitrary datatypes. Only the stage in which the memory resides can perform modifications and \ac{ALU} operations depending on the memory value. The hardware constraints required to allow memory access with the low latencies required in network equivalent limits the programmer to a \emph{single read-write dependency}. Due to this limitation, it is not possible to implement in-data plane hashmaps or tree data structures. For this, \acp{RMT} must be used, limiting insert operations to the switch's control plane.
+
+\textbf{Counters} are a more restrictive method of accessing the switch pipeline's DRAM.\@ It is intended for counting specific packet types passing the switch but can be arbitrary. Reading Counters may yield outdated values.
+
+\textbf{Direct vs. Indirect Memory.}
+Both register externs and counters are available in direct and indirect variants. The compiler implements direct externs as P4 tables, which can update the actions of that same table. This feature allows direct externs to have a dynamic size. In contrast, indirect externs have a static size defined at compile-time. Indirect externs are accessible from \pfourcode{apply \{\}} blocks.
+
+The Intel Tofino extensions of the \ac{PSA} enable more flexible and performant P4 applications. The main contributions are the memory types, which the data plane can modify without mirroring packets to the control plane.
+
+
+% \section{SwitchVM}
+% SwitchVM~\cite{khashabSwitchVMMultiTenancyInNetwork2023} provides a language based virtual machine for programmable switches. The motivation is the limitation of current programmable switches, that the programming can only be done via the control-plane processor. In a public cloud environment it is not possible to rent out in-network processing ressources to tenants without breaking the isolation requirements byhanding over network level access on a \ac{ToR}-switch to a single tenant. This issue can be solved by providing a virtualised subset of the switch to individual clients. The inter-tenant isolation is archived in SwitchVM on a language level.
+%
+% The second contribution of SwitchVM is language used is the full in-dataplane evaluation of the code. The promise is enourmous simplification of developing pure in-dataplane applications, as the code can be developed without the hardware restrictions, limited read/write dependencies, in mind with the compiler scheduling the code accordingly. Circumventing the hardware restrictions can be archived by recirculating the packets through the switch and only performing a limited set of operations per circulation. Sadly, currently there is no compiler from a P4 style programming language, to the SwitchVM-ISA\@.
+%
+% - describe execution model
+%
+% -

@@ -1,0 +1,192 @@
+\chapter{Implementation}\label{chapter:implementation}
+\thispagestyle{scrheadings}
+This chapter presents the implementation details and challenges of all components outlined in Chapter~\ref{chapter:design}. It discusses each component implementation individually and the communication protocol linking the components together.
+
+\section{Data plane}\label{sec:impl:data-plane}
+
+The data-plane application is the core part of this project. It runs on an \tofino{} switch and implements the cache for the distributed capability tables. The capability table is a \ac{RMT} in the ingress stage. Listing~\ref{listing:captable} shows its implementation. It uses the capability ID concatenated with the \ac{IPv4} address and \ac{UDP} port as the key. It includes the source address and port to identify the request's origin.
+
+\begin{listing}
+  \begin{minted}{cpp}
+table cap_table {
+  key = {
+    hdr.fractos.cap_id: exact @name("cap_id");
+    hdr.ipv4.srcAddr: exact @name("src_addr");
+    hdr.udp.srcPort: exact @name("src_port");
+  }
+  actions = {
+    capAllow;
+    drop;
+    capRevoked;
+    capUnknown;
+  }
+  size = 300000;
+  default_action = capUnknown;
+}
+  \end{minted}
+  \caption{\label{listing:captable} The capability table for selecting between forwarding, mirroring or declining ressource access based on the capability id and owner \ac{IP} address}
+\end{listing}
+
+When applying the capability table, the switch executes one of the four actions (\rust{capAllow, drop, capRevoked, capUnknown}) depending on the key. If the capability is valid, the table contains an entry mapping the key to the \rust{capAllow} action, which forwards the packet to the resource owner. In the case the capability is invalid, it executes the drop action. If the capability is invalid through an explicit revocation, the \rust{capRevoked} action notifies the request sender that the capability is not valid anymore. This differentiation between dropping packets with or without notification is necessary to prevent a non-malicious actor from retrying access to an invalid capability. If the key is not in the capability table, the \rust{capUnknown} action mirrors the request to the control plane.
+
+This concludes the discussion of the capability table implementation. The rest of this section presents some effects of the hardware limitations on the implementation and how we implement the mirroring packets to the control plane.
+
+\subsection{Hardware Restrictions}\label{sec:design-inn}
+The \tofino{} platform has several limitations, some due to the \ac{PSA}, others due to the limited number of \ac{MAU} stages available. This section presents the design choices resulting from the platform limitations.
+
+The main limitation of the Tofino programmable switch is that it is impossible to update the \acp{RMT} from the data plane. Only the control plane processor can update the tables. As a result, the data plane must mirror all packets that require an update of the switch's state to the control plane. This requirement introduces a race between the update operation by the control plane and the original packet handling by the recipient. The switch and the network protocol must be able to deal with this race and late visibility of table updates.
+
+The limited \ac{SRAM} and \ac{TCAM} available on the Tofino 1 platform allow only small capability tables. As an index into the capability table, we use the 128-bit capability ID and the request-source IP Address of 32-bit, thus a 176-bit index.
+
+The \ac{PSA} specification contains multiple match-kinds for \ac{RMT} keys. \ac{LPM}, ternary and exact matches are the most common match-kinds. While \ac{LPM} and ternary matches use \ac{TCAM} memory, exact matches use \ac{SRAM}.
+There is no semantic difference between the match kinds \texttt{ternary} and \texttt{exact} for the capability table. Therefore, we can choose between \ac{TCAM}-based storage with a \texttt{ternary} match or \ac{SRAM}-based storage with \texttt{exact} matches.
+On the Tofino 1 platform, \ac{TCAM} limits the implementation to 67584 table entries or approximately 300.000 in \ac{SRAM}. These limitations do not arise from the memory available but from the limited number of \ac{MAU} stages. Table~\ref{tab:mem-type} shows the memory and \ac{MAU} stage utilization with the two match kinds.
+
+\begin{table}
+  \centering
+  \begin{tabular}{lcccc}
+    \toprule
+    Match Kind & \makecell{No. of\\ Entries} & \makecell{TCAM\\ utilisation} & \makecell{SRAM\\ utilisation} & Used Stages\\
+    \midrule
+    ternary & 20,000 & 81.82\% & 5.34\% & 12\\
+    exact & 300,000 & 6.06\%& 86.93\% & 12\\
+    \bottomrule
+\end{tabular}
+\vspace{1em}
+\caption{\label{tab:mem-type} Comparison of table sizes with the Tofinos memory technologies.}
+\end{table}
+
+The latency of the switch pipeline is constant and known at compile time. It depends on the number of stages, the packets pass, and thus inderctly how much memory the switch uses. We use all stages to make the capability table as large as possible. There is no pipeline latency difference between the memory technologies. Therefore, we store the capability table in \ac{SRAM}, as the table can be more than ten times the size with no identified drawbacks.
+
+\subsection{Port Mirroring}
+The data plane must forward packets that require table modifications to the control plane. As the switch must also forward these packets to the intended destination, it mirrors packets to the control plane. The data plane only mirrors packets that require table modifications.
+
+The \tofino{} 1 architecture has one network port that does not connect to one of the switch chassis's front ports but to the \ac{CPU} inside the chassis. The control plane must configure a mirroring session to mirror a network packet to this port. The data plane must set the egress port in the packet's metadata header to the mirror port number and set the mirroring session ID.\@ Further, for each ingress port from which packets shall be mirrored, the global mirroring table must contain a mapping from the ingress port to a mirroring session ID.\@ All these table entries must be configured in the switch initialization process.
+
+\section{Control plane}
+
+The control plane configures the switch's tables depending on the packets the switch mirrors. It receives the packets on a \ac{UDP} POSIX socket and configures the tables via the barefoot runtime library.
+
+The application handles \rust{CapInsert} and \rust{CapRevoke} messages by inserting or modifying the entries in the capability table, such that the \rust{CapAllow} P4-action or the \texttt{CapRevoked} action is set as the action for the entry in the \texttt{cap\_table}.
+
+Besides managing the runtime table modifications, the control plane covers the initial setup. It configures the \ac{ARP} and \texttt{routing} tables with data it reads from its configuration. This configuration file may also contain an initial state of the capability table.
+For benchmarking and debugging, the control plane supports additional commands for resetting all switch tables, exiting the control plane, and starting/stopping a timer in the control plane.
+
+The transport interface is abstract, allowing simple modification of the underlying communication protocol. The receive buffer is wrapped into a typed pointer by the Request object.
+\section{Simulator Setup}
+Intel provides a simulator, a model, of the Tofino platform for development purposes. The model behaves like the hardware switch but is not cycle-accurate.
+The tools for interacting with the simulator are the same as those used with the hardware switch.
+
+The configuration tools connect to the simulator via a localhost address on the loopback interface. The simulator connects its switch ports to Linux virtual ethernet (veth) pairs. The switch model and control plane application cannot connect to the same veth pair, as the packets the switch mirrors to the control plane are dropped inside the kernel in this case. This behavior is likely due to a bug in the Tofino kernel module. The control plane application and the simulator cannot be in separate network namespaces, as the configuration address and interface are not configurable. Therefore, the network setup shown in Figure~\ref{fig:dev-setup} is necessary for a correctly working simulator setup.
+
+\begin{figure}[H]
+  \centering
+  \resizebox{\textwidth}{!}{
+    \input{gfx/tofino-dev-setup.tex}
+    }
+  \caption{\label{fig:dev-setup} The network topology in the simulator setup.}
+\end{figure}
+
+
+\section{\emph{tcap} runtime library}
+As the library abstracts network operations and executes request handlers to handle \acp{RPC} from other hosts, the library's programs are susceptible to thread-safety problems. The library uses an asynchronous programming model because of the asynchronous nature of network communication. We use the Rust programming language due to its solid memory- and thread-safety guarantees to ensure the safety of the applications and the library.
+
+The \emph{tcap} library is implemented in the Rust programming language and heavily uses the Tokio async runtime. The central \rust{Service} objects spawn a separate sender and receiver thread to allow maximal parallelism. The sender threads receive \rust{SendRequest} objects via a \ac{MPSC} queue and send them via the \ac{UDP} socket. The receiver thread continuously receives packets via the \ac{UDP} socket and handles requests that are not a response to a previously sent packet. If the packet is not a response, the next step is parsing the packet and executing the associated action. In order to match arriving response packets to the correct control flow, each packet contains a random 32-bit stream ID. This ID is the same in the request and response and thus allows matching incoming response packets and notifying control flows waiting for a response.
+
+The per-service capability table is a HashMap from the capability ID to the capability object. As we use sparse capabilities, the ID is a globally unique identifier, and remote access to the associated resource is valid if the capability ID is valid, i.e., a valid key to the HashMap. Because the capability is a globally unique object within a service instance, access to the structure must be synchronized. The implementation uses a Tokio's reader-writer lock to avoid lock congestion in this read-heavy data structure.
+%
+% \begin{figure}[h]
+%   \centering
+%   \resizebox{\textwidth}{!}{
+%   \begin{sequencediagram}
+%     \tikzstyle{inststyle}=[rectangle,anchor=west,minimum
+%     height=0.8cm, minimum width=1.6cm, fill=white, align=center]
+%
+%     \newinst{app}{App}
+%     \newinst{cap}{Capability}
+%     \newinst{req-invoke}{\parbox[c]{1.5cm}{\centering Request\\Invoke\\Header}}
+%     \newinst{send-req}{\parbox[c]{1.5cm}{\centering Send\\Request}}
+%
+%     \newinst{service-recv}{\parbox[c]{1.5cm}{\centering Service\\Receiver\\Thread}}
+%     \newinst{service}{Service}
+%
+%     \newinst{service-send}{\parbox[c]{1.5cm}{\centering Service\\Sender\\Thread}}
+%
+%     \begin{call}{app}{\texttt{RequestInvoke}}{cap}{\texttt{Ok(())}}
+%       \begin{call}{cap}{\texttt{RequestInvokeHeader::construct}}{req-invoke}{\texttt{RequestInvokeHeader}}
+%       \end{call}
+%       \begin{call}{cap}{\texttt{send}}{service}{\texttt{Ok(())}}
+%        \begin{call}{service}{\texttt{sendqueue.send()}}{service-send}{\texttt{Ok(())}}
+%         \begin{call}{service-recv}{\texttt{resp.notify()}}{service}{foo}
+%         \end{call}
+%        \end{call}
+%       \end{call}
+%     \end{call}
+%     \end{sequencediagram}
+% }
+%   \caption{\label{fig:example-req-invoke} The interaction of the libarary components in the case of a request invocation.}
+% \end{figure}
+%% move to implementation
+At the time of writing, the object links to exactly one capability. More desirable is the possibility to bind multiple capabilities to one object because it allows more fine-grained revocation. For example, with multiple capabilities per object, two nodes, $A$ and $B$, can access the object via two different capabilities. This mechanism allows the owner to independently revoke the capabilities for $A$ and $B$. The revocation of a capability to node $A$ does not revoke the access of node $B$ as it is a different capability.
+
+
+\begin{figure}[h]
+  \centering
+  \resizebox{\textwidth}{!}{
+    \input{gfx/tcap-runtime-arch.tex}
+  }
+  \caption{\label{fig:tcap-request} Example of the interaction of runtime components when an application invokes a request capability and waits for the response}
+\end{figure}
+
+Figure~\ref{fig:tcap-request} depicts an example interaction of the runtime components during the invocation of a request. In \step{1}, the user application calls the invoke function on a request object. This call blocks until the response is ready and returns in step \step{11}. The capability object creates \step{3} a SendRequest with a \rust{RequestInvoke} packet as content.
+The \rust{SendRequest} sets the stream ID, which the runtime uses to identify to which request an arriving response packet belongs. Further, the SendRequest contains a notifier, which the receive thread triggers when a response packet arrives and is ready in a shared buffer.
+
+In step \step{4}, the capability invoke function calls the service's send function with the \rust{SendRequest} object and waits on the SendRequest's response available notifier. In step \step{5}, the service blocks until the receiver thread triggers the notifier of this stream ID in step \step{9}, and the service can return to the user application.
+
+The service object sends the SendRequest, including the network packet buffer and destination information, via a \ac{MPSC} queue to the sender thread in step \step{6}. The sender thread performs the actual \ac{UDP} socket operation in \step{7}.
+
+The receiver thread waits for incoming packets on the socket in step \step{8}. After the socket receives, it extracts the stream ID.\@ If the packet is a response to a prior request, the stream ID is a key in the \rust{response_notifiers} hash map. In that case, the response buffer is inserted into the \rust{responses} hash map and triggers the response notifier as step \step{9}. This notifier triggers the blocked service, which will hand over the response to the application and thus finish the \ac{RPC}.\@
+
+\subsection{Memory Transfers}
+To allow data exchange between applications, \emph{tcap} must support memory transfers. A node can bind a memory region via a memory capability. It can delegate that capability to other nodes.
+The capability has a \rust{get_buffer()} method that an application calls to access the underlying memory. The method has the same semantics for local and remote memory regions. If a memory region is remote, it sends a \rust{MemoryCopyRequest} to the owner and blocks until the entire buffer is copied.
+
+A single \rust{MemoryCopyResponse} packet has a fixed transfer size with a default of 4096 bytes. The transfer size is a compile-time constant. Due to the fixed per-packet transfer size, the library must segment larger buffers into chunks. Each packet has a sequence number to order the \texttt{MemoryCopyResponse} packets. In addition, the response has a field for the size of the entire memory transfer and the number of bytes transferred in this packet. It is necessary to calculate the number of packets for this transfer. The \rust{Capability::get_buffer()} method waits for all response packets to arrive and then assembles the memory buffer from packets.
+
+\subsection{Capability Revocation}\label{sec:impl:revocation}
+As mentioned earlier, the revocation in this system is not necessery for the invalidation of access permissions. The resource owner invalidates access by deleting the capability to access that resource. Notifying delegatees of the revocation is used as a cleanup mechanism to garbage collect invalid references. The revocation protocol is thus not security critical, as access to the underlying resource will yield a \texttt{CapInvalid} response from the resource owner. Nonetheless, the mechanism is necessary to prevent resource leaks.
+
+A capability object keeps a list of all delegatees, to which the node delegates the capability to. The resource owner does not have a global list of all delegatees, but only of those it has delegated the capability to. This distributed delegatee list allows for the recursive revocation of capabilities. The revocation logic that the \emph{tcap} library implements is similar to the revocation logic of SemperOS~\cite{hilleSemperOSDistributedCapability2019}.\@ A node sends the revocation request to all nodes in its local delegatee list. On receiving a revocation request, a node again sends revocation requests to all nodes in its delegatee list and removes the capability from its capability table. Listing~\ref{list:revocation} shows the implementation. Thus, each node with the capability will eventually receive a revocation request if the path on which it initially received the capability still exists. The existence of this path cannot be guaranteed. Therefore, not every node with the capability will necessarily receive the revocation notice.
+\begin{listing}
+  \begin{minted}{rust}
+impl Capability {
+  //Revoke all delegations of the capability
+  pub async fn revoke(&self, s: Service) -> tokio::io::Result<()> {
+    let address = s.config.address.clone();
+    let packet: Box<[u8; std::mem::size_of::<RevokeCapHeader>()]> =
+      RevokeCapHeader::construct(self, address.as_str().into()).into();
+
+    for delegatee in self.delegatees.lock().await.clone() {
+      let _ = s
+        .send(SendRequest::new(delegatee.into(), packet.clone()), false)
+        .await;
+    }
+    s.cap_table.remove(self.cap_id).await;
+    Ok(())
+  }
+}
+
+// incoming packet handler
+let command = common.cmd;
+match CmdType::from(command) {
+  CmdType::CapRevoke => {
+    let hdr = RevokeCapHeader::from(packet);
+    debug!("Received CapRevoke: {:?}", hdr);
+    self.cap_table.get(hdr.cap_id).await.unwrap()
+        .lock().await
+        .revoke(self.clone()).await.unwrap();
+  }
+};
+  \end{minted}
+\caption{\label{list:revocation} The revocation algorithm in the tcap library. All unrelelated code is omitted.}
+\end{listing}

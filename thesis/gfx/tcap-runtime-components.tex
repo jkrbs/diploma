@@ -1,0 +1,39 @@
+\begin{tikzpicture}
+  \node[minimum width=3.5cm, minimum height=2cm, matrix, matrix of nodes, column sep=15pt, row sep=10pt](m) {
+    & & \node[draw] (app) {User Application}; & & \\
+     \node (lmark) {};& & & &  \node (rmark) {};\\
+    & \node[fill=col1] (obj) {Object}; & \node[fill=col1] (cap) {Capability}; & &\\
+    & & & \node[fill=col2] (captable) {CapTable}; &  \\
+    & & \node[fill=col2] (service) {Service}; & & \\
+    & & & & \\
+    & & & & \\
+    &\node[fill=col3] (sender) {Sender Thread}; & & \node[fill=col3] (receiver) {Receiver Thread}; & \\
+    & & & & \\
+    \node (klmark) {};& & & &  \node (krmark) {};\\
+    &\node[] (ksend) {Kernel Network Stack}; & & \node[] (krecv) {Kernel Network Stack}; & \\
+  };
+
+  \draw[->, thick] (sender) -- (ksend);
+  \draw[<-, thick] (receiver) -- (krecv);
+  \draw[dotted] (lmark) -- (rmark);
+  \draw[dotted] (klmark) -- (krmark);
+
+  \node[below=.2cm of klmark] (kernel-label) {Kernel};
+  \node[below=.2cm of lmark] (runtime-label) {Runtime};
+  \node[above=.2cm of lmark] (app-label) {Application};
+
+
+  \draw[->] (app) -| (obj);
+  \draw[->] (app) -- (cap);
+
+  \draw[->] (captable) |- (cap);
+  \draw[->] (service) -| (captable);
+
+  \draw[->] ($(cap.south) - (.5,0)$) --node[anchor=east] {SendRequests} ($(service.north) - (.5,0)$);
+  \draw[<-] ($(cap.south) + (.5,0)$) --node[anchor=west] {Response} ($(service.north) + (.5,0)$);
+
+  \draw[->] ($(service.south)-(.5,0)$) --++(0,-.5) -| ($(sender.north)$);
+  \draw[<-] ($(service.south)+(.5,0)$) --++(0,-.5) -| ($(receiver.north)$);
+
+  \draw[<->] (obj) -- (cap);
+\end{tikzpicture}

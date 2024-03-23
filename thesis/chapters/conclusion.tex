@@ -1,0 +1,26 @@
+%% Grammarly checked
+\chapter{Limitations and Future Work}
+\thispagestyle{scrheadings}
+As this work is a proof-of-concept, it has many limitations in its design and implementation. Chapter~\ref{chapter:evaluation} points out several performance issues of our implementation. This chapter discusses these limitations and proposes approaches for future work.
+
+The hardware limitations of present programmable switches limit the implementation to a weak role as a cache for the distributed capability tables. More capable hardware would allow the switch to implement a central capability table without needing a distributed state. Future work should revisit this problem when programmable switches allow in-data plane table modifications.
+
+% - more elaborate FaaS Runtime -> memory intensive workload => evaluate
+The \texttt{tcap} FaaS library developed in this thesis is limited in its features. The implementation does not support requests with immediate arguments; it only supports four capability parameters. The poor memory transfer performance shown in~\ref{sec:eval:throughput} could improve by switching from a \ac{UDP}/\ac{IP} based protocol to \ac{RDMA}\@. This change is very implementation-heavy due to the complexity and usability of \ac{RDMA}-based communication libraries. The exposure of RDMA memory regions through capabilities would support our hypothesis that the authentication offloading into the network is beneficial. Another drawback of the \ac{UDP} based protocol is the requirement for handling lost packets, which is currently not implemented.
+
+Further, this implementation is limited to a single switch, making it unusable for the envisioned large-scale cloud deployments. There are multiple possible directions for resolving this issue. Firstly, Zeno \etal{} have shown a weak-consistency protocol for shared tables across switches~\cite{zenoSwiShmemDistributedShared2020}. Secondly, the 128-bit capability space could be segmented across several switches and limit the enforcement to the switch close to the object owner. Lastly, the control-plane application could become stateful and hold the entire capability table. In case of a miss in the data-plane table, the switch can forward the request to the slower control plane, which handles the packet according to the same rules but with a larger table. The latter approach is then memory-bound on the control-plane processor. Due to the limited bandwidth between the data- and control plane, the first two approaches seem more promising.
+
+As argued in the design chapter, the bottleneck for the capability table updates is a control-plane application, which cannot saturate the \ac{PCIe} link to the data plane. One obvious point for performance improvement is the usage of \ac{DPDK}\footnote{\url{https://www.dpdk.org/}, accessed: 15/01/24} instead of \ac{POSIX} network sockets. We also leave these performance improvements for future work.
+
+The work is an early prototype showing the concept's validity and ideas. 
+As this chapter presents, our implementations are fairly limited and require extensive performance engineering efforts before they can be used in a real-world system. Nonetheless, it shows the feasibility of the design ideas.
+
+%% grammrly checked
+\chapter{Conclusions}
+This thesis shows the feasibility of an in-network capability system as the authentication mechanism for distributed runtimes. It provides a proof-of-concept design for a network protocol and implementations of an in-network capability management application and a \ac{FaaS} runtime library with several example and benchmark applications.
+
+The in-network capability system acceleration moves the capability tracking into a centralized component away from the hosts. This work's implementation shows that one of FractOS' bottlenecks, the capability tracking in the controller, can be offloaded into programmable networks with low-latency capability lookups. This offloading comes with its limitations, resulting from the limited ability of present programmable switches. Further, this work shows an additional use case for programmable data center networks and the discontinued Intel Tofino product line.
+
+The evaluation shows that in-network tracking does not introduce additional overheads into the system, compared to a classical switch. The comparison to FractOS shows significant performance degradations, which the \emph{tcap} \ac{FaaS} runtime introduces, which can be explained by for the design choices made in this proof-of-concept implementation. This work proposes future work to eliminate these limitations.
+
+This work is fully open-source and available at \url{https://github.com/jkrbs/diploma}\@.

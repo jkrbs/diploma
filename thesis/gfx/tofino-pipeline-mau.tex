@@ -1,0 +1,79 @@
+\begin{tikzpicture}[every text node part/.style={align=center}]
+
+  \node[fill=col5, minimum width=1.5cm, minimum height=4cm, matrix, matrix of nodes, column sep=5pt, row sep=4pt](ingress-parser) {
+      \node[state,scale=0.7] (1) {};\\
+      \node[state,scale=0.5] (4) {}; \\
+      \node[state,scale=0.7] (5) {}; \\
+    };
+    \node[fill=col2, minimum width=1.3cm, minimum height=4cm, right = 0.5cm of ingress-parser, matrix, matrix of nodes, column sep=5pt, row sep=4pt](ingress) {
+     \node[fill=col3, minimum height = .5cm, minimum width=.5cm] (is1) {}; & \node[fill=col3, trapezium, rotate=-90, minimum height = .25cm, minimum width=.5cm] (ts1) {}; \\
+     \node[fill=col3, minimum height = .5cm, minimum width=.5cm] (is2) {}; & \node[fill=col3, trapezium, rotate=-90, minimum height = .25cm, minimum width=.5cm] (ts2) {}; \\
+     \node[fill=col3, minimum height = .5cm, minimum width=.5cm] (is3) {}; & \node[fill=col3, trapezium, rotate=-90, minimum height = .25cm, minimum width=.5cm] (ts3) {}; \\
+     \node[fill=col3, minimum height = .5cm, minimum width=.5cm] (is4) {}; & \node[fill=col3, trapezium, rotate=-90, minimum height = .25cm, minimum width=.5cm] (ts4) {}; \\
+     \node[fill=col3, minimum height = .5cm, minimum width=.5cm] (is5) {}; & \node[fill=col3, trapezium, rotate=-90, minimum height = .25cm, minimum width=.5cm] (ts5) {}; \\
+    };
+    \node[fill=col2, minimum width=1.3cm, minimum height=4cm, right = 0.5cm of ingress, matrix, matrix of nodes, column sep=5pt, row sep=4pt](ingress-deparser) {
+ \node[fill=col3, minimum height = .5cm, minimum width=.5cm] (is11) {}; & \node[fill=col3, trapezium, rotate=-90, minimum height = .25cm, minimum width=.5cm] (ts11) {}; \\
+     \node[fill=col3, minimum height = .5cm, minimum width=.5cm] (is21) {}; & \node[fill=col3, trapezium, rotate=-90, minimum height = .25cm, minimum width=.5cm] (ts21) {}; \\
+     \node[fill=col3, minimum height = .5cm, minimum width=.5cm] (is31) {}; & \node[fill=col3, trapezium, rotate=-90, minimum height = .25cm, minimum width=.5cm] (ts31) {}; \\
+     \node[fill=col3, minimum height = .5cm, minimum width=.5cm] (is41) {}; & \node[fill=col3, trapezium, rotate=-90, minimum height = .25cm, minimum width=.5cm] (ts41) {}; \\
+     \node[fill=col3, minimum height = .5cm, minimum width=.5cm] (is51) {}; & \node[fill=col3, trapezium, rotate=-90, minimum height = .25cm, minimum width=.5cm] (ts51) {}; \\
+    };
+  \node[fill=col2, minimum width=1.3cm, minimum height=4cm, right = 0.5cm of ingress-deparser, matrix, matrix of nodes, column sep=5pt, row sep=4pt](egress-parser) {
+ \node[fill=col3, minimum height = .5cm, minimum width=.5cm] (is1) {}; & \node[fill=col3, trapezium, rotate=-90, minimum height = .25cm, minimum width=.5cm] (ts12) {}; \\
+     \node[fill=col3, minimum height = .5cm, minimum width=.5cm] (is22) {}; & \node[fill=col3, trapezium, rotate=-90, minimum height = .25cm, minimum width=.5cm] (ts22) {}; \\
+     \node[fill=col3, minimum height = .5cm, minimum width=.5cm] (is32) {}; & \node[fill=col3, trapezium, rotate=-90, minimum height = .25cm, minimum width=.5cm] (ts32) {}; \\
+     \node[fill=col3, minimum height = .5cm, minimum width=.5cm] (is42) {}; & \node[fill=col3, trapezium, rotate=-90, minimum height = .25cm, minimum width=.5cm] (ts42) {}; \\
+     \node[fill=col3, minimum height = .5cm, minimum width=.5cm] (is52) {}; & \node[fill=col3, trapezium, rotate=-90, minimum height = .25cm, minimum width=.5cm] (ts52) {}; \\
+  };
+  \node[fill=col2, minimum width=1.3cm, minimum height=4cm, right = 0.5cm of egress-parser, matrix, matrix of nodes, column sep=5pt, row sep=4pt](egress) {
+ \node[fill=col3, minimum height = .5cm, minimum width=.5cm] (is13) {}; & \node[fill=col3, trapezium, rotate=-90, minimum height = .25cm, minimum width=.5cm] (ts13) {}; \\
+     \node[fill=col3, minimum height = .5cm, minimum width=.5cm] (is233) {}; & \node[fill=col3, trapezium, rotate=-90, minimum height = .25cm, minimum width=.5cm] (ts23) {}; \\
+     \node[fill=col3, minimum height = .5cm, minimum width=.5cm] (is33) {}; & \node[fill=col3, trapezium, rotate=-90, minimum height = .25cm, minimum width=.5cm] (ts33) {}; \\
+     \node[fill=col3, minimum height = .5cm, minimum width=.5cm] (is43) {}; & \node[fill=col3, trapezium, rotate=-90, minimum height = .25cm, minimum width=.5cm] (ts43) {}; \\
+     \node[fill=col3, minimum height = .5cm, minimum width=.5cm] (is53) {}; & \node[fill=col3, trapezium, rotate=-90, minimum height = .25cm, minimum width=.5cm] (ts53) {}; \\
+  };
+  \node[fill=col6, minimum width=1.3cm, minimum height=4cm, right = 0.5cm of egress](egress-deparser) {};
+
+%  \node[above=.3cm of ingress.north](ingress-label) {Ingress};
+  \node[above=.3cm of ingress-parser.north](ingress-parser-label) {Ingress\\Parser};
+%  \node[above=.3cm of ingress-deparser.north](ingress-deparser-label) {Ingress\\Deparser};
+%  \node[above=.3cm of egress.north](egress-label) {Egress};
+%  \node[above=.3cm of egress-parser.north](egress-parser-label) {Egress\\Parser};
+  \node[above=.3cm of egress-deparser.north](egress-deparser-label) {Egress\\Deparser};
+
+  \draw[thick] ($(ingress.north west)+(0,.5)$) |- ++(0,.5) -- ++(6.5,0)node[midway, above] {\ac{MAU} Stages} -| ($(egress.north east)+(0,.5)$) ;
+
+  \draw[thick, ->] (ingress-parser) -- (ingress);
+  \draw[thick, ->] (ingress) -- (ingress-deparser);
+  \draw[thick, ->] (ingress-deparser) -- (egress-parser);
+  \draw[thick, ->] (egress-parser) -- (egress);
+  \draw[thick, ->] (egress) -- (egress-deparser);
+
+
+  % states in parsers
+
+  \node[right = 1cm of egress-deparser.north](mirroring-label){Mirrored\\Packets};
+  \node[left = 1cm of ingress-parser.south](incoming-label){Incoming\\Packets};
+  \node[right = 1cm of egress-deparser.south](outgoing-label){Outgoing\\Packets};
+
+  \draw[->] ($(incoming-label) + (0,1.5)$) -- ($(ingress-parser.south west) + (0,1.5)$);
+  \draw[->] ($(incoming-label) + (0,2)$) -- ($(ingress-parser.south west) + (0,2)$);
+  \draw[->] ($(incoming-label) + (0,2.5)$) -- ($(ingress-parser.south west) + (0,2.5)$);
+
+
+  \draw[->] ($(egress-deparser.south east) + (0,1)$) -| ($(outgoing-label.north) + (-.5,0)$);
+  \draw[->] ($(egress-deparser.south east) + (0,1.5)$) -| ($(outgoing-label.north) + (0,0)$);
+  \draw[->] ($(egress-deparser.south east) + (0,1.9)$) -| ($(outgoing-label.north) + (.5,0)$);
+
+  \draw[->] ($(egress-deparser.north east) + (0,-1)$) -| ($(mirroring-label.south) + (-.5,0)$);
+  \draw[->] ($(egress-deparser.north east) + (0,-1.5)$) -| ($(mirroring-label.south) + (0,0)$);
+  \draw[->] ($(egress-deparser.north east) + (0,-1.9)$) -| ($(mirroring-label.south) + (.5,0)$);
+
+    \draw[->] (1) edge[loop above] (1);
+    \draw[->] (1) edge[bend left] (4);
+    \draw[->] (4) edge[bend left] (5);
+    \draw[->] (5) edge[loop below] (5);
+    \draw[->] (5) edge[bend left] (1);
+
+\end{tikzpicture}

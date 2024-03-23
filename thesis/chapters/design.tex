@@ -1,0 +1,300 @@
+%% grammarly checked
+\chapter{Design}\label{chapter:design}
+\thispagestyle{scrheadings}
+This thesis aims to explore in-network acceleration for distributed execution environments. The distributed runtime in this thesis aims to be suitable for disaggregated data-center architectures. This usage scenario requires low-latency and high-throughput communication. The FractOS work showed that offloading the capability system to SmartNICs leads to a performance degradation and not to the expected improvements~\cite{vilanovaSlashingDisaggregationTax2022}.\@ We propose the offloading onto programmable network hardware.
+
+This chapter describes the system's design and how it tries to achieve the goal. The chapter presents the capability system, the in-network acceleration mechanisms, and the reasoning behind the design decisions made. We will start with the overall architecture and continue discussing each component individually.
+
+Three components are necessary for the accelerated distributed runtime. Firstly, we need a distributed runtime. This thesis implements the runtime in the \emph{tcap} library. The library has abstractions for \ac{RPC} and memory transfers between distributed applications. It suffices to implement simple distributed applications. Secondly, parts of the application must be offloaded into programmable networks. We identify the capability system as a prime target for offloading, as it is the most sensitive to scaling the system to many nodes. We propose offloading the capability validation into programmable networks. This goal requires an implementation of the communication protocol and the capability system as a P4 in-network application.
+Thirdly, the existing programmable network hardware architectures limit the abilities of in-network processing. As a result it is not possible to implement the entire capability system behavior in the data plane. Thus, we must implement a slow path as the control plane for the in-network application to handle more complex operations. Section~\ref{sec:design-inn} elaborates on this limitations and explains why the architectural limitations require a seperation into a fast and slow path. This chapter discusses the architecture of these three components and describes the communication protocol between the components.
+
+\section{Architecture Overview}
+% -- distributed execution env
+% -- FractOS inspired
+% -- CPS
+% -- Sparse Capabilities
+% -- In-network acceleration
+%The goal of this work is the evaluation of in-network acceleration for distributed capaility systems. Thus, we design a capbility-based communication protocol for a distributed execution environment and  develop a a runtime that uses a capability-based authentication model. This work's \emph{tcap} runtime uses the protocols and suffices as proof-of-conecept application for the in-network acceleration of the underlying capability system.
+This work targets the distributed execution of cloud applications. An example application is a \ac{ML} accelerated document search system. Figure~\ref{fig:application} shows a simplified architecture of such a search system. An external user performs a web request against a web service. The web service invokes the search application in \step{1}, which itself invokes a \ac{ML} Search system with permission to access the application document storage in step \step{2}. The search system replies with a list of the relevant documents via the web service to the user in \step{3}.
+
+\begin{figure}
+  \begin{tikzpicture}[every text node part/.style={align=center}]
+    \node[] (start) {};
+    \node[right=2cm of start, draw] (web) {Web\\Service};
+    \node[right=2cm of web, draw] (app) {Application\\Logic};
+    \node[right=3cm of app, draw] (ml) {\ac{ML} Search\\System};
+
+    \node[below=1cm of app, draw] (storage) {Storage};
+
+    \draw[->] (start) --node[anchor=south] {User\\Request} (web);
+    \draw[->] (web) --node[anchor=south]{\step{1}} (app);
+    \draw[->] (app) --node[anchor=north] {\step{2} call with\\permission\\to access docs} (ml);
+
+    \draw[->] (storage) -| (ml);
+    \draw[->] (ml) --++(0,1) -- node[anchor=south, midway]{\step{3} list of relevant document IDs} ++(-9,0) -- (web);
+    \end{tikzpicture}
+  \caption{\label{fig:application} A pipeline of a cloud-based search service as an application example}
+\end{figure}
+This example application shows multiple requirements for our runtime. Every part of the pipeline in Figure~\ref{fig:application}\@ runs on a different physical server. For a low response time, the \ac{RPC} latency overhead must be as small as possible. For a high utilization of the \emph{\ac{ML} Search System}, multiple customers should share the system. In order to ensure isolation between the customers, the service must only be able to access storage objects, as the calling application permits. Capability-based authentication allows an implementation of the \ac{PoLA} and isolation in shared resources. Scalability is key since we envision entire data centers using our distributed runtime.
+
+The FractOS meta-operating system has the same goal and tries to achieve scalability by offloading the resource and capability management to SmartNICs. The evaluation of FractOS shows that the offloading from the hosts \ac{CPU} onto SmartNICs does not provide performance and scalability improvements. This work offloads the capability management onto programmable switches. The idea is that the switch is a central component, and the consistency problems introduced by having a distributed capability table can be side-stepped by reintroducing a central component. Having a central capability enforcement component is not feasible with other technologies due to low latency constraints. Burtsev \ et al {} proposed the idea of network-based capability enforcement with CapNet in 2017 but implemented it on commodity servers, which is not feasible for real-world usage. However, despite their limitations, programmable switches are in use at cloud data centers~\cite{zhaogengliWhitePaperBaidu2022, panSailfishAcceleratingCloudscale2021} and are sufficiently programmable for our use case.
+
+Following the application example, each of the components in Figure~\ref{fig:application} uses the \emph{tcap} library for the interaction with the distributed runtime. The \emph{tcap} library provides \ac{RPC} and memory transfer abstraction through capabilities the applications interact with. The library implements a custom network protocol to communicate between different nodes. All communication goes through the central programmable switch, which tracks all capability operations and enforces access control. Figure~\ref{fig:application-with-tofino} shows the integration of the components.
+
+\begin{figure}
+  \centering
+  \begin{tikzpicture}[every text node part/.style={align=center}]
+    \node[] (start) {};
+    \node[right=1cm of start, draw] (web) {Web\\Service};
+
+    \node[right=2cm of web] (tofino) {};
+
+    \node[above=2cm of tofino, draw] (app) {Application\\Logic};
+    \node[right=2cm of tofino, draw] (ml) {\ac{ML} Search\\System};
+
+    \node[below=2cm of tofino, draw] (storage) {Storage};
+
+    \node[fill=col4, right=0cm of web, minimum width=.2cm, minimum height=1cm] (web-c) {};
+    \node[fill=col4, left=0cm of ml, minimum width=.2cm, minimum height=1cm] (ml-c) {};
+    \node[fill=col4, below=0cm of app, minimum height=.2cm, minimum width=1cm] (app-c) {};
+    \node[fill=col4, above=0cm of storage, minimum height=.2cm, minimum width=1cm] (storage-c) {};
+
+    \draw[draw=black!60, ->] ($(web-c.east)+ (0,.2)$) -- ($(tofino) - (.2,-.2)$)-- ($(app-c.south) - (.2,0)$);
+    \draw[draw=black!60, ->] ($(app-c.south) + (.2,0)$) -- ($(tofino) + (.2,.2)$)-- ($(ml-c.west)+(0,.2)$);
+    \draw[draw=black!60, ->] ($(storage-c.north)$) -- ($(tofino) + (0,-.2)$)-- ($(ml-c.west)-(0,.2)$);
+    \draw[draw=black!60, ->] ($(ml-c.west)$) -- (web-c);
+
+    \node[at=(tofino), fill=col2, fill opacity=.6] (tofino-l) {Programmable\\Switch};
+  \end{tikzpicture}
+  \caption{\label{fig:application-with-tofino} Architecture overview integrated into the example application of Figure~\ref{fig:application}. The green boxes \textcolor{col4}{\rule{.3cm}{.3cm}} represent the \emph{tcap} library that abstracts all \ac{RPC} operations.}
+\end{figure}
+%
+% The architecture of the runtime and the communication is inspired by the FractOS meta-operating system.
+%
+%
+% It uses sparse capabilities to allow immediate revocation of capabilities by the owner without the need for network communication.
+%
+% The minimal network architecture consists of the central \tofino{} programmable switch running the P4 Dataplane application, the control plane on its x86-64 \ac{CPU} and two servers connected to the \tofino{} switch. The servers run applications on top of the capability-based \ac{FaaS} library \emph{tcap}, which this thesis provides. The applications communicate via a custom \ac{UDP} based protocol containing information on the capability and the request information. We choose to develop a \ac{UDP}-based protocol, as this allows the usage of simple preexisting socket libraries in the host applications and more importantly, the switch does not require any connection flow tracking, as the \ac{UDP} communication is state-less.
+%
+% Each network host can run multiple independent applications, which the system identifies via their socket ports used for communication.
+%
+% In more complex scenarios, the hosts must not directly connect to the \tofino{} switch. The capability validation is not dependent on the switch's ingress or egress port information.
+
+% \begin{figure}[ht]
+%   \centering
+%   \input{gfx/dev-setup.tex}
+%   \caption{\label{fig:architecture} Architecture Overview shows a simple usage scenario with all relevant components and their communication paths.}
+% \end{figure}
+\section{Programming Model}\label{ref:programming-model}
+Before discussing the internals of the \emph{tcap} library, this section discusses the programming model of applications. This work's foundation, the FractOS meta-operating system, presented in Chapter~\ref{chap:background}, uses a \ac{CPS} application model. Besides the FractOS research project, the programming model is ubiquitous in \ac{FaaS} runtimes. \ac{AWS} Lambda uses \ac{CPS} with the event-driven programming model.\footnote{\url{https://docs.aws.amazon.com/serverless/latest/devguide/serverless-transition.html}, accessed 12/03/2024} This programming model is practical for distributed applications, as it minimizes the number of network packets a function call requires. A function does not return to its caller but calls the next step in a computation pipeline with its return value as a parameter. This model fits serverless applications well, as they commonly express processing pipelines that an external event, like a web request, triggers.
+
+To express such pipelines, the user applications and services use the \emph{tcap} library, which provides a \ac{FaaS} runtime on top of the in-network capability system. A step in the processing pipeline is a function that is bound to a request capability. Any application that has access to this capability can call it. The caller can wait for the call to return but usually just kicks off the pipeline, which the runtime asynchronously executes. The handler function can call other request capabilities to construct a pipeline of requests. Figure~\ref{fig:computation-model} visualizes the \ac{CPS} vs.\@ classical, returning function calls.
+
+\begin{figure}[H]
+  \centering
+  \resizebox{\textwidth}{!}{
+    \input{gfx/computation-model.tex}
+  }
+  \caption{\label{fig:computation-model} A nested function call with and without tail recursion optimization and respective communication graphs.}
+\end{figure}
+
+In combination with a capability-based access model, request capabilities are an abstraction to functions. The caller has an object it calls. It does not know where or with which implementation the \ac{RPC} will execute. This abstraction as black-box functions allows cloud providers to modify implementations, for example, add the usage of hardware accelerators, without requiring customers to change their code. More importantly, this behavior allows the runtime to dynamically schedule the functions to nodes for load-balancing.
+
+\section{Capability System}
+Applications interact with capabilities, which are the programming model's abstractions for resources. This section explains the semantics and inner workings of the capability system in detail.
+
+An application can only access an object if it has a capability for it. Each application has a local capability table with all capabilities it can access. These are either capabilities that other nodes have delegated to it or capabilities of its own objects.
+The runtime abstracts the communication to remote nodes, such that a local and a remote capability access behave the same way from the application perspective.
+
+The goal of the capability system is the prevention of unauthenticated resource access. Access to a remote capability must only be possible if the capability was delegated. To ensure that a node cannot generate valid capabilities, we use sparse capabilities. To access a capability, one must know a randomly generated 128-bit capability ID.\@ The security of the system hinges on this ID being unlikely to guess. A node responds with \texttt{CapInvalid} to an access with an invalid capability ID.\@
+
+For a remote node to access a local resource, it must have the capability to access the resource. Only the object owner can create the capability. The owner can delegate the capability to other nodes. For later revocation, a node that performs the delegation must track all nodes to which it delegates the capability. To remove a node's access to a resource, one must revoke the node's capability to the resource. The capability revocation function notifies all nodes that the capability has been delegated to about its revocation. This revocation notice propages through all nodes having a reference to that capability. Section~\ref{sec:impl:revocation} explains the revocation algorithm in more detail. For the invalidation of access to the resource, the owner must delete the capability from its local capability table. This is a key insight, as the the removal from the resource owners capabilty table suffices to remove all access to the resource and thus to prevent unauthenticated access. Therefore, the security of the system does not hindge on the consistency of the distributed capability table, but only on the state of the resource owner's capability table.
+
+
+\section{\emph{tcap} Runtime Library}
+This section describes the \emph{tcap} library. It provides the programming interface to applications using the distributed runtime and implements the capability system, as well as the network communication between nodes.
+
+The library supports \acp{RPC} and memory transfers via capability objects as abstractions. The programming model and overall design are inspired by FractOS.\@
+\rust{RequestObjects} wrap \ac{RPC} function handlers, and \rust{MemoryObejcts} wrap memory buffers. Each application has a \texttt{Service} object, which holds the library's state and provides the user-facing \acp{API}. The \rust{Service} object provides an interface to create new capabilities, bind them to memory or request objects, delegate the capabilities to other nodes, or revoke them.
+
+Figure~\ref{fig:tcap-arch} provides an overview of the different components.  The \rust{Service} object contains a per-application capability table, a sender and receiver thread performing the network operations.
+
+\begin{figure}[h!]
+  \centering
+  \resizebox{\textwidth}{!}{
+    \input{gfx/tcap-runtime-components.tex}
+  }
+  \caption{\label{fig:tcap-arch} An architectural overview over the tcap libary.}
+\end{figure}
+
+\textbf{Resource Abstractions.}
+There are two types of capabilities and objects: request and memory capabilities/objects. The former contains a function that the Service executes when an invocation of the request capability is received. Memory objects are memory buffers that an application can copy through memory capabilities. The service object's \rust{run} function spawns a sender and receiver thread. The sender thread performs the network socket send operations for packets it receives via a \ac{MPSC} queue.
+The sender thread receives requests originating from, e.g.\@, operations on capability objects in the application via the queue. The sender thread sends these requests via the Service's \ac{UDP} socket. If the operation requires a response, The \ac{MPSC} message contains a semaphore, which the socket receiver thread triggers when the response packet arrives.
+
+For bootstrapping, an application can create manual entries in its capability table. The \rust{Service} object provides an \ac{API} to create a capability from a capability ID and an address of the capability's owner.
+
+\textbf{Network Operations.}
+The receiver thread receives packets from the \ac{UDP} socket and parses the arriving packets. If it is a response to a previous send request, the corresponding semaphore wakes the waiting object up after the receiver thread copies the packet into a shared buffer.
+
+The network operations are isolated into separate threads, as the network operations are blocking syscalls. Separating the blocking communication operations into a queue pair for send and receive is a typical design pattern for high-performance transfer systems. For example, Infiniband and \ac{PCIe} use this send and receive queue pair design.
+
+\section{Network Protocol}
+This section presents the network protocol the \emph{tcap} library implements to communicate with remote hosts. The protocol uses \ac{UDP} as the transport protocol. The protocol supports two operations: The invocation of \acp{RPC} and copying remote memory. Both operations must only be possible if the sender of the packet has the capability to do so. Each packet contains a capability ID that authenticates the request or memory transfer. If an object owner receives a request with a capability ID it does not have in its local capability table, it replies with a \rust{CapInvalid}.
+
+To perform a \ac{RPC}, a node sends a \rust{RequestInvoke} packet to the sender. If the receiver knows that capability, it calls the function in the associated object. If the \rust{RequestInvoke} packet requests the return code of that function, the receiver sends a \rust{RequestResponse} packet with the return code after the function's execution finishes. Otherwise, the owner sends no response.
+
+In order to perform a memory transfer, a node must be able to access a remote memory region. The node sends a \rust{MemoryCopyRequest} to the receiver. If the capability is valid, it responds with at least one \rust{MemoryCopyResponse} packet. The object owner sends multiple packets if the memory object's buffer is larger than the per-packet transfer size. Each packet contains a sequence number to allow the reorder of the packets if they do not arrive in the correct order.
+
+\section{In-network Appplication}\label{sec:design-dos-protection}
+This work aims to offload resource management from the application hosts into the network. Moving the capability system from the application into a programmable switch comes with challenges resulting from the hardware limitations of state-of-the-art programmable switches. \tofino{} switches provide the most flexible programmability compared to competing products~\footnote{\url{https://p4.org/ecosystem/?_product_category=hardware&_p4_functions=l2-switching\%2Cl3-routing&_product_project_types=hardware}, accessed 18/03/2024}.\@
+
+As the network switch is inherently a central component and is always on the communication path between applications, we use it as a central capability table and enforcement of the accesses. Therefore, the switch holds a capability table as \ac{RMT}. The biggest limitation is that it is impossible to modify \acp{RMT} directly from the P4 packet processing pipeline. A table modification is only possible through the switch's \ac{CPU}, requiring the application to mirror packets to the \ac{CPU} and handle them there. This limitation leads to the separation into a fast path, which can be performed inside the \ac{ASIC} data plane, and a slow path that handles packets that require table modification in the \ac{CPU}.
+
+Another design limitation is that there might be a significant delay between a packet that should modify the switch state passing through the switch and the state changes becoming visible. Thus, the network protocol cannot assume the switch's state. This significantly limits the possibilities of offloading capability management.
+
+% delegation -> invocation with continuation
+The following example illustrates the problem: An application wants to trigger a pipeline of requests. The request's parameters contain the request's capabilities for continuation. These capabilities must now be inserted into the switch's capability table. The control plane must perform this insertion, leading to a delay between the time when the insertion should happen and when it actually happens. The delegated capabilities might be used during this delay, but they are not in the switch's capability table yet. Figure~\ref{fig:prot-race} depicts this situation.
+
+\begin{figure}[ht]
+  \centering
+\begin{sequencediagram}
+    \tikzstyle{inststyle}=[rectangle,anchor=west,minimum
+    height=0.8cm, minimum width=1.6cm, fill=white]
+
+    \newinst{service}{Service}
+    \newinst{sw}{Switch}
+    \newinst{cp}{Control-plane}
+    \newinst{client}{Client}
+
+    \mess{service}{\texttt{CapInsert}}{client}
+
+    \begin{call}{sw}{\texttt{CapInsert}}{cp}{
+        \shortstack{
+        \Lightning{}\\
+        Table Insert
+        }}
+        \postlevel
+      \mess{client}{\texttt{RequestInvoke} \faBolt}{service}
+    \end{call}
+
+  \end{sequencediagram}
+  \caption{\label{fig:prot-race} The access to a capability can overtake the insertion into the capability table by the control plane.}
+\end{figure}
+
+A similar problem can happen when a capability is invalidated that another node tries to access. The invalidation of the capability is not visible in the capability table when the resource access passes the switch, even though the invalidation happened earlier. Figure~\ref{fig:prot-capinvalid} depicts this scenario.
+
+\begin{figure}[ht]
+  \centering
+  \begin{sequencediagram}
+    \tikzstyle{inststyle}=[rectangle,anchor=west,minimum
+    height=0.8cm, minimum width=1.6cm, fill=white]
+
+    \newinst{client}{Client}
+    \newinst{cp}{Control plane}
+    \newinst{sw}{Switch}
+    \newinst{service}{Service}
+
+    \begin{call}{client}{\texttt{RequestInvoke}}{service}{\texttt{CapInvalid}}
+      \end{call}
+      \begin{call}{sw}{\texttt{CapInvalid}}{cp}{\shortstack{configure\\ capTable}}
+        \postlevel
+      \end{call}
+  \end{sequencediagram}
+  \caption{\label{fig:prot-capinvalid} The client tries to access a non-existing capability. The switch cannot block this request, as this might be an access to a delegated, but not yet inserted capability. The switch can only block further accesses to that capability, if the ressource owner sends a \texttt{CapInvalid} reply.}
+\end{figure}
+These observations introduce two challenges. Firstly, the switch cannot deny access to unknown capabilities, as these might be eventually known but not yet visible in the data plane. Secondly, the switch is not able to immediately deny access to a resource after the capability has been revoked, again because the table modification is not immediately visible. As a result, the switch cannot serve as a capability enforcement layer. The capability system cannot depend on the switch's state. The switch can only be a centralized cache for the decentralized per-application capability tables.
+
+The weak role of the switch as a cache for the distributed capability tables has two major benefits.
+Firstly, the switch can lose its state at any time without disruption of the high-level application. All packets will pass the switch and relearn its state. The second benefit is that the switch will act as a denial of service protection for access to invalid capabilities. The \emph{tcap} library responds to an invalid capability access with a \rust{CapInvalid} packet. The switch mirrors the packet to the control plane, which modifies the capability table accordingly. The state will eventually become visible in the data plane. The switch will then drop any packets accessing a resource with that capability.
+
+%\subsection{Stateloss in Dataplane}
+%For the protocol to stop the access to capabilities, the switch must explicitly deny the access. The data plane can lose its entire state without disrupting the operation of applications. After a restart of the data plane application, the switch will relearn the contents of the capability table. The switch learns the capability table by monitoring the traffic for all valid resource accesses. If the switch does not know a capability ID, it always forwards capability-based resource accesses and creates capability table entries depending on the resource owner's response.
+%
+%\subsection{Denial of Service Protection}\label{sec:design-dos-protection}
+%The data plane capability table stores valid capabilities and, more importantly, the information that a capability is invalid if a \texttt{CapInvalid} packet passes the switch. If a capability is invalid according to the cap table, the switch can respond directly and thus prevent the resource owner from getting spammed with invalid requests.
+%This behavior prevents denial of service attacks on applications by accesses to invalid capabilities.
+
+The following sections discuss the design considerations for the data and control plane applications in detail and explain how the design choices result from the observations above.
+
+\subsection{Data Plane Application}
+The data plane implementation uses the \langpfour{} language with the \tofino{} specific extensions. This section will describe all stages within the pipeline and discuss the relevant design decisions. The capability table is the central component of this application and is implemented in the \pfour{Ingress} stage. The network packets are forwarded and modified according to the \ac{MAC} address table for non-modifying packet types. The application runs on a single Tofino pipe. Thus, four instances of the application run in parallel on the switch. The application does not provide any data replication mechanisms across Tofino's pipes. In the following section, we individually discuss each processing step in the pipeline. We focus on the Ingress Stage since most parts of the application resides there. Discussions of the parsers are omitted, as they only construct a struct from an arriving packet and do not contain any design choices.
+
+\textbf{Ingress Controlblock.}
+The ingress control contains the heart of the data-plane application, as all access control decisions and capability table modifications base on the packet sender. Thus, the capability table and mirroring tables are \acp{RMT} within the ingress control. Figure~\ref{fig:ingress-decision} depicts the processing pipeline in the ingress stage. We focus our discussion here on the parts relevant to the capability system and only briefly discuss the parts required for ordinary network switches.
+
+\begin{figure}[ht]
+  \centering
+  \resizebox{\textwidth}{!}{
+    \input{gfx/dataplane.tex}
+  }
+  \caption{\label{fig:ingress-decision} The flow diagram depicts the ingress processing decisions in the data plane.}
+\end{figure}
+%% below all Grammarly checked
+% -- Cap Table Lookup
+For every packet accessing a resource (e.g., \texttt{RequestInvoke}, \texttt{MemoryCopy}), the switch performs a lookup of the capability ID and the origin of the packet in the capability table. It forwards the packet to the destination if there is a match in the table. If the entry is \texttt{CapInvalid}, it replies to the sender with a \texttt{CapInvalid} packet.
+As presented earlier, we cannot send \pfour{CAP_INVALID} messages if we encounter a miss in the capability \ac{RMT}, but only if the object owner has revoked the capability.
+By forwarding resource accesses with unknown capability IDs to the object owner, the switch can see from the response if the object access is successful and if the capability is valid or not.
+If the capability ID is unknown, the data plane sends the response to the control plane, which will modify the capability table accordingly.
+% -- Mirroring Decisions
+The data plane application mirrors certain network packets to the control plane application so that the control plane can modify the Tofinos \acp{RMT} accordingly. The switch will send a copy of the packet to the control plane and the intended recipient. The data plane mirrors \texttt{CapInsert} and \texttt{CapRevoke} packets, as they are explicit delegations or revocations of capabilities. The data plane also mirrors implicit delegations through resource accesses, such as request invocations with continuation capabilities as parameters.
+
+%% -- Bypass for non-FractOS Type packets => ARP
+Besides being the central component of the in-network capability system, the \tofino{} switch is also an ordinary network switch. It must be able to process packets without using the capability-based access-control rules. All packets not part of the capability-based protocol, such as \ac{ARP} or \ac{ICMP} packets, must be able to pass the switch unhindered. The \ac{IPv4} network on top would otherwise be dysfunctional.
+Ordinary network switches hold a Mac address table to store the mapping from \ac{MAC}-address to the network interface. One must also implement this table on the Tofino switch.
+
+\textbf{Egress Stages.}
+The application logic of the data plane application resides entirely in the ingress control block. The egress control block only updates the header checksum according to the modifications made in the ingress control. As the \ac{UDP} checksum is not mandatory~\cite{ietfUserDatagramProtocol1980} and includes the payload, the implementation does not calculate it and sets the checksum field to zero.
+
+
+The main reason for this decision is that the P4 header data structure contains sub-structures for every possible packet type, which the ingress stage does not interpret but is part of. The header struct's layout is due to the lack of support for optional headers in the \tofino{} P4 implementation. Therefore, the P4 header struct does not match the incoming network packet.
+Due to this disparity, we cannot simply pass the header struct as payload and compute the packet checksum. The checksum calculation has separate inputs for every supported packet type. As this is tedious and wastes pipeline operations, we omit this and set the \ac{UDP} checksum to zero. This shortcut comes at the expense of risking unnoticed network transmission errors, which can lead to silent data corruption in memory transfers.
+
+The \ac{IPv4} header checksum does not include the packet payload and is mandatory~\cite{ietfInternetProtocol1981}\@. A system must drop packets with incorrect checksums, as described by the RFC\@. Thus, we update the checksum according to the updated header contents.
+
+The later processing stages are not specific to this application, and we discuss them only briefly. The ingress deparser stage mirrors the network packet to the control plane if the ingress control requests the mirroring by setting metadata flags accordingly. The application uses no other functionality in the egress stages. This concludes the design overview of the in-network application's data plane part.
+
+\subsection{Controlplane Application}
+Due to hardware limitations, the control plane handles all operations that are impossible within the data plane. Most notably, the data plane cannot perform inserts into the \ac{RMT}. It is necessary to perform those from a separate control-plane application running on the Tofino's CPU.\@ Intel provides the Barefoot Runtime Libraries (\emph{BfRT}) for Python and C++ as an abstraction for the \ac{gRPC} interface between the control and data plane. Figure~\ref{fig:controlplane-arch} provides an overview of the control plane application and its interaction with the data plane.
+
+\begin{figure}[H]
+  \centering
+  \resizebox{\textwidth}{!}{
+    \input{gfx/controlplane.tex}
+  }
+  \caption{\label{fig:controlplane-arch} Control Plane Architecture Overview}
+\end{figure}
+
+We use the provided C++ libraries for our control plane because our usage scenario requires many short applications and complex interactions between these smaller functions, yielding many request invocations and request-capability delegations. Thus, we must support performant mechanisms for capability delegations, which the control plane must insert into the switch's capability table. Due to the limited network-link capacity of the Tofino's mirror port, we must assume that packets between the data- and control plane are lost. Further, there can be significant delays between the network packet passing the data plane and the mirrored packet arriving at the control plane application's socket.
+
+The central object within the control plane application is the \texttt{controller} object. It contains the logic of modifying the data plane's \acp{RMT}. Upon the arrival of a \rust{CapInsert} or other requests which require an insert into the switch's capability table, it creates an entry in the switch via the \emph{BfRT} interface.
+Further, the controller performs the initial configuration on boot. It reads a configuration file, configures the mirroring, \ac{ARP}, and switches routing tables accordingly.
+
+% \section{Thread Model}
+% - security critical component
+% \section{Capability-based authentication protocol}\label{ref:proto}
+%
+% This section discusses the capability-based access protocol. It supports the delegation and revocation of capabilities. Capabilities reference memory or request objects. Figure~\ref{fig:prot-flow} shows an example protocol flow for delegating and invocating a request capability. The switch mirrors the \texttt{CapInsert} network packet to the control plane, which can modify the required table. The packet arrives at the recipient of the delegation, which will insert the capability in its local table. The entries in the local capability table are usable by the user application. Using the capability can be the invocation, a delegation, or the request to receive the underlying memory.
+%
+% \begin{figure}[ht]
+%   \centering
+%   \begin{sequencediagram}
+%     \tikzstyle{inststyle}=[rectangle,anchor=west,minimum
+%     height=0.8cm, minimum width=1.6cm, fill=white]
+%
+%     \newinst{client}{Client}
+%     \newinst{sw}{Switch}
+%     \newinst{cp}{Control-plane}
+%     \newinst{service}{Service}
+%
+%     \mess{service}{\texttt{CapInsert}}{client}
+%
+%     \mess{sw}{\texttt{CapInsert}}{cp}
+%
+%     \mess{cp}{Table Insert with CapID}{sw}
+%
+%     \mess{client}{RequestInvoke CapID}{service}
+%   \end{sequencediagram}
+%   \caption{\label{fig:prot-flow} An example protocol flow for the delegation and invocation of a request capability}
+% \end{figure}
+%
+% We chose to orient the protocol closely on the network protocol of the FractOS meta OS in order to ease the later unification of the protocols to achieve interoperability. Currently, the protocols and implementations are not interoperable.
