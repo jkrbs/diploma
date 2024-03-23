@@ -10,3 +10,6 @@
 [submodule "tcap-benchmarks"]
 	path = tcap-benchmarks
 	url = git@github.com:jkrbs/tcap-benchmarks.git
+[submodule "tcap-evaluation"]
+	path = tcap-evaluation
+	url = git@github.com:jkrbs/tcap-evaluation.git
